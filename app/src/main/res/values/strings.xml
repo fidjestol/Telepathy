@@ -1,3 +1,50 @@
 <resources>
     <string name="app_name">Telepathy</string>
+
+    <!-- Login and Registration -->
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="login">Login</string>
+    <string name="register">Register</string>
+    <string name="no_account_register">Don\'t have an account? Register here</string>
+    <string name="already_have_account">Already have an account? Login here</string>
+    <string name="username">Username</string>
+
+    <!-- Main Menu -->
+    <string name="welcome_message">Welcome, %1$s!</string>
+    <string name="create_lobby">Create Lobby</string>
+    <string name="join_lobby">Join Lobby</string>
+    <string name="logout">Logout</string>
+    <string name="help">Help</string>
+
+    <!-- Create Lobby -->
+    <string name="create_new_lobby">Create New Lobby</string>
+    <string name="lobby_name">Lobby Name</string>
+    <string name="enter_lobby_name">Enter a name for your lobby</string>
+    <string name="time_limit_seconds">Time Limit (seconds)</string>
+    <string name="enter_time_limit">Enter time limit per round (10-120)</string>
+    <string name="lives_per_player">Lives per Player</string>
+    <string name="enter_number_of_lives">Enter number of lives (1-5)</string>
+    <string name="word_category">Word Category</string>
+
+    <!-- Join Lobby -->
+    <string name="available_lobbies">Available Lobbies</string>
+    <string name="no_lobbies_available">No lobbies available. Create one!</string>
+    <string name="host_name">Host: %1$s</string>
+    <string name="player_count">Players: %1$d/%2$d</string>
+    <string name="category_label">Category: %1$s</string>
+
+    <!-- Game Activity -->
+    <string name="round_number">Round: %1$d</string>
+    <string name="lives_left">Lives: %1$d</string>
+    <string name="players">Players</string>
+    <string name="available_words">Available Words</string>
+    <string name="enter_word">Enter a word</string>
+    <string name="submit">Submit</string>
+    <string name="waiting_for_players">Waiting for players to join…</string>
+    <string name="start_game">Start Game</string>
+
+    <!-- Player Status -->
+    <string name="player_eliminated">Eliminated</string>
+    <string name="player_active">Active</string>
 </resources>
