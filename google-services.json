@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "30068953",
+    "firebase_url": "https://telepathy-6de37-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "telepathy-6de37",
+    "storage_bucket": "telepathy-6de37.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:30068953:android:5fd01ec8e6cabbffc0eec8",
+        "android_client_info": {
+          "package_name": "com.chrisbbj.game"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5Avw8HVcWUL4yUY-JD6QCrYCFDYsTFpI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:30068953:android:67474b7254f8e3b8c0eec8",
+        "android_client_info": {
+          "package_name": "com.example.telepathy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5Avw8HVcWUL4yUY-JD6QCrYCFDYsTFpI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
