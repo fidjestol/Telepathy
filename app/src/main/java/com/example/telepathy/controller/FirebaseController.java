@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 
 public class FirebaseController {
+
+    //https://telepathy-game-1-default-rtdb.europe-west1.firebasedatabase.app
     private static FirebaseController instance;
     private FirebaseAuth auth;
     private DatabaseReference database;
@@ -31,8 +33,9 @@ public class FirebaseController {
 
     private FirebaseController() {
         auth = FirebaseAuth.getInstance();
-        database = FirebaseDatabase.getInstance().getReference();
-    }
+        database = FirebaseDatabase.getInstance(
+                "https://telepathy-game-1-default-rtdb.europe-west1.firebasedatabase.app"
+        ).getReference();    }
 
     public static synchronized FirebaseController getInstance() {
         if (instance == null) {

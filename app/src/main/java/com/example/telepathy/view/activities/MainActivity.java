@@ -18,6 +18,11 @@ import com.example.telepathy.utils.PreferenceManager;
 import com.example.telepathy.view.fragments.CreateLobbyFragment;
 import com.example.telepathy.view.fragments.JoinLobbyFragment;
 import com.example.telepathy.view.fragments.MenuFragment;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 
 public class MainActivity extends AppCompatActivity {
     private FirebaseController firebaseController;
@@ -29,24 +34,52 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Ensure Firebase is initialized
+        FirebaseDatabase.getInstance("https://telepathy-game-1-default-rtdb.europe-west1.firebasedatabase.app");
+
+        FirebaseApp.initializeApp(this);
+
+        // Test Firebase connection
+        testFirebaseConnection();
+
         // Initialize Firebase controller
-        firebaseController = FirebaseController.getInstance();
         preferenceManager = new PreferenceManager(this);
 
         // Check if user is logged in
-        if (!preferenceManager.isLoggedIn()) {
+        /*if (!preferenceManager.isLoggedIn()) {
             navigateToLoginActivity();
             return;
-        }
+        }*/
 
-        // Get current player
-        currentPlayer = preferenceManager.getUserData();
+        // Temporary: Create a dummy player for testing
+        currentPlayer = new Player("TestUser");
+        currentPlayer.setId("test123");
 
-        // Set up toolbar
-        setSupportActionBar(findViewById(R.id.toolbar));
 
         // Load menu fragment
-        loadFragment(new MenuFragment());
+        if (savedInstanceState == null) {
+            loadFragment(new MenuFragment());
+        }
+    }
+
+    private void testFirebaseConnection() {
+        FirebaseDatabase.getInstance().getReference(".info/connected").addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Boolean connected = snapshot.getValue(Boolean.class);
+                if (connected != null && connected) {
+                    Toast.makeText(MainActivity.this, "Connected to Firebase!", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(MainActivity.this, "Not connected to Firebase", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Toast.makeText(MainActivity.this, "Firebase connection error: " + error.getMessage(),
+                        Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     @Override
@@ -91,9 +124,11 @@ public class MainActivity extends AppCompatActivity {
     public void loadFragment(Fragment fragment) {
         // Pass current player to fragment if needed
         Bundle args = new Bundle();
-        args.putString("playerId", currentPlayer.getId());
-        args.putString("playerName", currentPlayer.getUsername());
-        fragment.setArguments(args);
+        if (currentPlayer != null) {
+            args.putString("playerId", currentPlayer.getId());
+            args.putString("playerName", currentPlayer.getUsername());
+            fragment.setArguments(args);
+        }
 
         // Replace current fragment
         FragmentManager fragmentManager = getSupportFragmentManager();
