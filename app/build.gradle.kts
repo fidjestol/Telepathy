@@ -4,7 +4,6 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     // Add this line
     id("com.google.gms.google-services")
-    id("com.android.application")
 }
 
 android {
@@ -13,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.telepathy"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
