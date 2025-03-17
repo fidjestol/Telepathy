@@ -2,6 +2,7 @@ package com.example.telepathy.view.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
@@ -21,6 +22,7 @@ import com.example.telepathy.view.fragments.MenuFragment;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
@@ -34,10 +36,11 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Ensure Firebase is initialized
-        FirebaseDatabase.getInstance("https://telepathy-game-1-default-rtdb.europe-west1.firebasedatabase.app");
-
-        FirebaseApp.initializeApp(this);
+        // Test writing to database, message should be displayed in Firebase console
+        DatabaseReference database = FirebaseDatabase.getInstance().getReference();
+        database.child("test").setValue("Firebase fungerer!")
+                .addOnSuccessListener(aVoid -> Log.d("FirebaseTest", "Data lagt til"))
+                        .addOnFailureListener(e -> Log.e("FirebaseTest", "Feil: ", e));
 
         // Test Firebase connection
         testFirebaseConnection();
