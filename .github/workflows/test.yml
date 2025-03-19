@@ -26,7 +26,6 @@ jobs:
           echo "org.gradle.parallel=true" >> ~/.gradle/gradle.properties
           echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError" >> ~/.gradle/gradle.properties
           echo "org.gradle.caching=true" >> ~/.gradle/gradle.properties
-          echo "android.enableBuildCache=true" >> ~/.gradle/gradle.properties
           echo "kotlin.incremental=true" >> ~/.gradle/gradle.properties
 
       - name: Grant execute permission for gradlew
