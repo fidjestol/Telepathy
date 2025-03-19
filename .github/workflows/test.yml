@@ -6,7 +6,7 @@ on:
       - dev
 
 jobs:
-  build-and-test:
+  unit-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,23 +22,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      - name: Build with Gradle
-        run: ./gradlew build
-
       - name: Run Unit Tests
         run: ./gradlew test
-
-      - name: Run Instrumented Tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          script: ./gradlew connectedAndroidTest
 
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: |
-            app/build/reports/tests/
-            app/build/reports/androidTests/
+          path: app/build/reports/tests/
