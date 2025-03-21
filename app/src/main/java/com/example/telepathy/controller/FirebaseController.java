@@ -23,6 +23,33 @@ public class FirebaseController {
     private FirebaseAuth auth;
     private DatabaseReference database;
 
+    /**
+     * Get a specific lobby by its ID
+     * @param lobbyId The ID of the lobby to retrieve
+     * @param callback Callback to handle the result
+     */
+    public void getLobbyById(String lobbyId, FirebaseCallback callback) {
+        if (lobbyId == null || lobbyId.isEmpty()) {
+            callback.onFailure("Invalid lobby ID");
+            return;
+        }
+
+        database.child("lobbies").child(lobbyId).get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult() != null) {
+                        Lobby lobby = task.getResult().getValue(Lobby.class);
+                        if (lobby != null) {
+                            callback.onSuccess(lobby);
+                        } else {
+                            callback.onFailure("Lobby not found");
+                        }
+                    } else {
+                        callback.onFailure(task.getException() != null ?
+                                task.getException().getMessage() : "Failed to retrieve lobby");
+                    }
+                });
+    }
+
     // Interface for callbacks
     public interface FirebaseCallback {
         void onSuccess(Object result);
@@ -208,30 +235,43 @@ public class FirebaseController {
                         Lobby lobby = task.getResult().getValue(Lobby.class);
                         if (lobby != null && lobby.canStartGame()) {
                             // Close the lobby
-                            lobby.setOpen(false);
+                            Map<String, Object> lobbyUpdates = new HashMap<>();
+                            lobbyUpdates.put("open", false);
 
                             // Create a new game instance
-                            Map<String, Object> gameData = new HashMap<>();
-                            gameData.put("lobbyId", lobbyId);
-                            gameData.put("players", lobby.getPlayers());
-                            gameData.put("config", lobby.getGameConfig());
-                            gameData.put("currentRound", 1);
-                            gameData.put("status", "active");
-
-                            // Save game data
                             String gameId = database.child("games").push().getKey();
                             if (gameId != null) {
+                                // Create game data
+                                Map<String, Object> gameData = new HashMap<>();
+                                gameData.put("lobbyId", lobbyId);
+                                gameData.put("players", lobby.getPlayers());
+                                gameData.put("config", lobby.getGameConfig());
+                                gameData.put("currentRound", 1);
+                                gameData.put("status", "active");
+
+                                // Setup the first round with a timestamp
+                                Map<String, Object> roundData = new HashMap<>();
+                                roundData.put("roundNumber", 1);
+                                roundData.put("startTime", System.currentTimeMillis());
+                                roundData.put("endTime", System.currentTimeMillis() + (lobby.getGameConfig().getTimeLimit() * 1000));
+
+                                // Get words for the round
+                                List<String> words = getWordsForCategory(lobby.getGameConfig().getSelectedCategory(), 20);
+                                roundData.put("words", words);
+
+                                gameData.put("currentRound", roundData);
+
+                                // Save game data
                                 database.child("games").child(gameId).setValue(gameData)
                                         .addOnCompleteListener(gameTask -> {
                                             if (gameTask.isSuccessful()) {
                                                 // Update lobby with game reference
-                                                Map<String, Object> updates = new HashMap<>();
-                                                updates.put("isOpen", false);
-                                                updates.put("gameId", gameId);
+                                                lobbyUpdates.put("gameId", gameId);
 
-                                                database.child("lobbies").child(lobbyId).updateChildren(updates)
-                                                        .addOnCompleteListener(updateTask -> {
-                                                            if (updateTask.isSuccessful()) {
+                                                database.child("lobbies").child(lobbyId)
+                                                        .updateChildren(lobbyUpdates)
+                                                        .addOnCompleteListener(lobbyTask -> {
+                                                            if (lobbyTask.isSuccessful()) {
                                                                 callback.onSuccess(gameId);
                                                             } else {
                                                                 callback.onFailure("Failed to update lobby");
@@ -253,6 +293,12 @@ public class FirebaseController {
                 });
     }
 
+    // Helper method to get words for a category
+    private List<String> getWordsForCategory(String category, int count) {
+        // This should be implemented in your WordSelection class
+        // For now, adding a temporary implementation
+        return com.example.telepathy.model.WordSelection.getRandomWords(category, count);
+    }
     // Game methods
     public void submitWord(String gameId, String playerId, String word, FirebaseCallback callback) {
         database.child("games").child(gameId).child("players").child(playerId).child("currentWord")
