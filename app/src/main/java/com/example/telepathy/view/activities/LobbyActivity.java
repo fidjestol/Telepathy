@@ -8,6 +8,7 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -17,6 +18,11 @@ import com.example.telepathy.controller.FirebaseController;
 import com.example.telepathy.model.Lobby;
 import com.example.telepathy.model.Player;
 import com.example.telepathy.view.adapters.PlayerListAdapter;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
 
@@ -35,6 +41,8 @@ public class LobbyActivity extends AppCompatActivity {
     private String lobbyId;
     private String playerId;
     private boolean isHost = false;
+
+    private ValueEventListener lobbyListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,6 +80,31 @@ public class LobbyActivity extends AppCompatActivity {
 
         // Load lobby data
         loadLobbyData();
+
+        setupLobbyListener();
+    }
+
+    private void setupLobbyListener() {
+        DatabaseReference lobbyRef = FirebaseDatabase.getInstance().getReference()
+                .child("lobbies").child(lobbyId);
+
+        lobbyListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Lobby lobby = snapshot.getValue(Lobby.class);
+                if (lobby != null) {
+                    updateUI(lobby);
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Toast.makeText(LobbyActivity.this, "Error: " + error.getMessage(),
+                        Toast.LENGTH_SHORT).show();
+            }
+        };
+
+        lobbyRef.addValueEventListener(lobbyListener);
     }
 
     private void loadLobbyData() {
@@ -101,14 +134,31 @@ public class LobbyActivity extends AppCompatActivity {
         });
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        // Remove listener to prevent memory leaks
+        if (lobbyListener != null) {
+            DatabaseReference lobbyRef = FirebaseDatabase.getInstance().getReference()
+                    .child("lobbies").child(lobbyId);
+            lobbyRef.removeEventListener(lobbyListener);
+        }
+    }
+
     private void updateUI(Lobby lobby) {
         lobbyNameTextView.setText(lobby.getName());
 
-        // Find host name
+        // Find host name and determine if current player is the host
         String hostName = "Unknown";
+        boolean currentPlayerIsHost = false;
+
         for (Player player : lobby.getPlayers()) {
             if (player.isHost()) {
                 hostName = player.getUsername();
+                if (player.getId().equals(playerId)) {
+                    currentPlayerIsHost = true;
+                }
                 break;
             }
         }
@@ -121,8 +171,11 @@ public class LobbyActivity extends AppCompatActivity {
         players.addAll(lobby.getPlayers());
         playerListAdapter.notifyDataSetChanged();
 
-        // Enable start button if enough players
-        startGameButton.setEnabled(lobby.canStartGame());
+        // Only show start button to host
+        startGameButton.setVisibility(currentPlayerIsHost ? View.VISIBLE : View.GONE);
+
+        // Enable button only if enough players and current player is host
+        startGameButton.setEnabled(currentPlayerIsHost && lobby.canStartGame());
     }
 
     private void startGame() {

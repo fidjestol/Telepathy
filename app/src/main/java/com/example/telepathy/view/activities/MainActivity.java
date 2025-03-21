@@ -14,6 +14,7 @@ import androidx.fragment.app.FragmentManager;
 
 import com.example.telepathy.R;
 import com.example.telepathy.controller.FirebaseController;
+import com.example.telepathy.model.Lobby;
 import com.example.telepathy.model.Player;
 import com.example.telepathy.utils.PreferenceManager;
 import com.example.telepathy.view.fragments.CreateLobbyFragment;
@@ -36,6 +37,9 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Initialize Firebase controller
+        firebaseController = FirebaseController.getInstance();
+
         // Test writing to database, message should be displayed in Firebase console
         DatabaseReference database = FirebaseDatabase.getInstance().getReference();
         database.child("test").setValue("Firebase fungerer!")
@@ -55,8 +59,8 @@ public class MainActivity extends AppCompatActivity {
         }*/
 
         // Temporary: Create a dummy player for testing
-        currentPlayer = new Player("TestUser");
-        currentPlayer.setId("test123");
+        currentPlayer = new Player("Marcello");
+        currentPlayer.setId("marcello");
 
 
         // Load menu fragment
@@ -150,10 +154,44 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void navigateToGameActivity(String lobbyId, String gameId) {
-        Intent intent = new Intent(this, GameActivity.class);
-        intent.putExtra("lobbyId", lobbyId);
-        intent.putExtra("gameId", gameId);
-        intent.putExtra("playerId", currentPlayer.getId());
-        startActivity(intent);
+        // Check if player is host
+        boolean isHost = false;
+        if (lobbyId != null) {
+            // Get lobby from Firebase to check if current player is host
+            firebaseController.getLobbyById(lobbyId, new FirebaseController.FirebaseCallback() {
+                @Override
+                public void onSuccess(Object result) {
+                    Lobby lobby = (Lobby) result;
+                    boolean isPlayerHost = false;
+
+                    for (Player player : lobby.getPlayers()) {
+                        if (player.getId().equals(currentPlayer.getId()) && player.isHost()) {
+                            isPlayerHost = true;
+                            break;
+                        }
+                    }
+
+                    Intent intent = new Intent(MainActivity.this, gameId == null ? LobbyActivity.class : GameActivity.class);
+                    intent.putExtra("lobbyId", lobbyId);
+                    if (gameId != null) {
+                        intent.putExtra("gameId", gameId);
+                    }
+                    intent.putExtra("playerId", currentPlayer.getId());
+                    intent.putExtra("isHost", isPlayerHost);
+                    startActivity(intent);
+                }
+
+                @Override
+                public void onFailure(String error) {
+                    Toast.makeText(MainActivity.this, error, Toast.LENGTH_SHORT).show();
+                }
+            });
+        } else {
+            // No lobby provided, just start the game activity
+            Intent intent = new Intent(this, GameActivity.class);
+            intent.putExtra("gameId", gameId);
+            intent.putExtra("playerId", currentPlayer.getId());
+            startActivity(intent);
+        }
     }
 }
