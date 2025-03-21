@@ -1,8 +1,10 @@
 package com.example.telepathy.view.activities;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -195,6 +197,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         });
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     @Override
     public void onRoundStart(GameRound round) {
         runOnUiThread(() -> {
@@ -235,6 +238,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         });
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     @Override
     public void onPlayerEliminated(Player player) {
         runOnUiThread(() -> {
@@ -267,7 +271,12 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     @Override
     public void onError(String error) {
         runOnUiThread(() -> {
-            Toast.makeText(this, error, Toast.LENGTH_SHORT).show();
+            // Show error message in UI
+            Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+
+            // Log the error to help debugging
+            Log.e("TELEPATHY_ERROR", error);
+            System.out.println("TELEPATHY_ERROR: " + error);
         });
     }
 
@@ -327,4 +336,6 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             gameController.cleanup();
         }
     }
+
+
 }

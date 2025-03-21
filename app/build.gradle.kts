@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     // Add this line
     id("com.google.gms.google-services")
+    // Add the Crashlytics Gradle plugin
+    id("com.google.firebase.crashlytics")
 }
 
 android {
@@ -55,6 +57,10 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.10.0"))    // Firebase modules (no version needed when using BoM)
     implementation("com.google.firebase:firebase-database")
     implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-analytics")
+    // Add the dependencies for the Crashlytics and Analytics libraries
+    // When using the BoM, you don't specify versions in Firebase library dependencies
+    implementation("com.google.firebase:firebase-crashlytics")
     implementation("com.google.firebase:firebase-analytics")
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.preference)

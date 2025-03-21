@@ -2,6 +2,7 @@ package com.example.telepathy.controller;
 
 import androidx.annotation.NonNull;
 
+import com.example.telepathy.model.WordSelection;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.DataSnapshot;
@@ -232,68 +233,154 @@ public class FirebaseController {
         database.child("lobbies").child(lobbyId).get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult() != null) {
-                        Lobby lobby = task.getResult().getValue(Lobby.class);
-                        if (lobby != null && lobby.canStartGame()) {
+                        try {
+                            // Get lobby data
+                            DataSnapshot snapshot = task.getResult();
+                            Object lobbyDataObj = snapshot.getValue();
+
+                            // Add debug info
+                            System.out.println("LOBBY DATA TYPE: " + (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
+
+                            // Check data type before casting
+                            if (!(lobbyDataObj instanceof Map)) {
+                                callback.onFailure("Invalid lobby data format: " +
+                                        (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
+                                return;
+                            }
+
+                            Map<String, Object> lobbyData = (Map<String, Object>) lobbyDataObj;
+
+                            // Get players data - CHECK THE TYPE!
+                            Object playersObj = lobbyData.get("players");
+
+                            // Debug info
+                            System.out.println("PLAYERS DATA TYPE: " + (playersObj != null ? playersObj.getClass().getName() : "null"));
+
+                            // Handle players data based on its actual type
+                            Map<String, Object> playersMap;
+                            if (playersObj instanceof Map) {
+                                playersMap = (Map<String, Object>) playersObj;
+                            } else if (playersObj instanceof List) {
+                                // Convert List to Map if needed
+                                List<Object> playersList = (List<Object>) playersObj;
+                                playersMap = new HashMap<>();
+                                for (int i = 0; i < playersList.size(); i++) {
+                                    Object player = playersList.get(i);
+                                    if (player instanceof Map) {
+                                        Map<String, Object> playerMap = (Map<String, Object>) player;
+                                        String id = (String) playerMap.get("id");
+                                        if (id != null) {
+                                            playersMap.put(id, player);
+                                        } else {
+                                            playersMap.put("player" + i, player);
+                                        }
+                                    }
+                                }
+                            } else {
+                                callback.onFailure("Invalid players data format: " +
+                                        (playersObj != null ? playersObj.getClass().getName() : "null"));
+                                return;
+                            }
+
+                            if (playersMap.size() < 2) {
+                                callback.onFailure("Cannot start game: not enough players");
+                                return;
+                            }
+
                             // Close the lobby
                             Map<String, Object> lobbyUpdates = new HashMap<>();
                             lobbyUpdates.put("open", false);
 
-                            // Create a new game instance
+                            // Create game ID
                             String gameId = database.child("games").push().getKey();
-                            if (gameId != null) {
-                                // Create game data
-                                Map<String, Object> gameData = new HashMap<>();
-                                gameData.put("lobbyId", lobbyId);
-                                gameData.put("players", lobby.getPlayers());
-                                gameData.put("config", lobby.getGameConfig());
-                                gameData.put("currentRound", 1);
-                                gameData.put("status", "active");
-
-                                // Setup the first round with a timestamp
-                                Map<String, Object> roundData = new HashMap<>();
-                                roundData.put("roundNumber", 1);
-                                roundData.put("startTime", System.currentTimeMillis());
-                                roundData.put("endTime", System.currentTimeMillis() + (lobby.getGameConfig().getTimeLimit() * 1000));
-
-                                // Get words for the round
-                                List<String> words = getWordsForCategory(lobby.getGameConfig().getSelectedCategory(), 20);
-                                roundData.put("words", words);
-
-                                gameData.put("currentRound", roundData);
-
-                                // Save game data
-                                database.child("games").child(gameId).setValue(gameData)
-                                        .addOnCompleteListener(gameTask -> {
-                                            if (gameTask.isSuccessful()) {
-                                                // Update lobby with game reference
-                                                lobbyUpdates.put("gameId", gameId);
-
-                                                database.child("lobbies").child(lobbyId)
-                                                        .updateChildren(lobbyUpdates)
-                                                        .addOnCompleteListener(lobbyTask -> {
-                                                            if (lobbyTask.isSuccessful()) {
-                                                                callback.onSuccess(gameId);
-                                                            } else {
-                                                                callback.onFailure("Failed to update lobby");
-                                                            }
-                                                        });
-                                            } else {
-                                                callback.onFailure("Failed to create game");
-                                            }
-                                        });
-                            } else {
+                            if (gameId == null) {
                                 callback.onFailure("Failed to generate game ID");
+                                return;
                             }
-                        } else {
-                            callback.onFailure("Cannot start game: not enough players");
+
+                            // Get config data - CHECK THE TYPE!
+                            Object configObj = lobbyData.get("gameConfig");
+                            Map<String, Object> configData;
+
+                            if (configObj instanceof Map) {
+                                configData = (Map<String, Object>) configObj;
+                            } else {
+                                // Use default config
+                                configData = new HashMap<>();
+                                configData.put("timeLimit", 30);
+                                configData.put("maxPlayers", 8);
+                                configData.put("livesPerPlayer", 3);
+                                configData.put("selectedCategory", "Animals");
+                            }
+
+                            // Create game data
+                            Map<String, Object> gameData = new HashMap<>();
+                            gameData.put("lobbyId", lobbyId);
+                            gameData.put("players", playersMap);
+                            gameData.put("config", configData);
+                            gameData.put("status", "active");
+
+                            // Create first round
+                            Map<String, Object> roundData = new HashMap<>();
+                            roundData.put("roundNumber", 1);
+                            roundData.put("startTime", System.currentTimeMillis());
+
+                            // Get time limit
+                            long timeLimit = 30;
+                            Object timeLimitObj = configData.get("timeLimit");
+                            if (timeLimitObj instanceof Number) {
+                                timeLimit = ((Number) timeLimitObj).longValue();
+                            }
+
+                            roundData.put("endTime", System.currentTimeMillis() + (timeLimit * 1000));
+
+                            // Get category for word selection
+                            String category = "Animals";
+                            Object categoryObj = configData.get("selectedCategory");
+                            if (categoryObj instanceof String) {
+                                category = (String) categoryObj;
+                            }
+
+                            // Get words for the round
+                            List<String> words = WordSelection.getRandomWords(category, 20);
+                            roundData.put("words", words);
+
+                            gameData.put("currentRound", roundData);
+
+                            // Save game data
+                            database.child("games").child(gameId).setValue(gameData)
+                                    .addOnCompleteListener(gameTask -> {
+                                        if (gameTask.isSuccessful()) {
+                                            // Update lobby with game reference
+                                            lobbyUpdates.put("gameId", gameId);
+
+                                            database.child("lobbies").child(lobbyId)
+                                                    .updateChildren(lobbyUpdates)
+                                                    .addOnCompleteListener(lobbyTask -> {
+                                                        if (lobbyTask.isSuccessful()) {
+                                                            callback.onSuccess(gameId);
+                                                        } else {
+                                                            callback.onFailure("Failed to update lobby: " +
+                                                                    (lobbyTask.getException() != null ?
+                                                                            lobbyTask.getException().getMessage() : "unknown error"));
+                                                        }
+                                                    });
+                                        } else {
+                                            callback.onFailure("Failed to create game: " +
+                                                    (gameTask.getException() != null ?
+                                                            gameTask.getException().getMessage() : "unknown error"));
+                                        }
+                                    });
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            System.out.println("START GAME ERROR: " + e.getMessage());
+                            callback.onFailure("Error starting game: " + e.getMessage());
                         }
                     } else {
                         callback.onFailure("Lobby not found");
                     }
                 });
-    }
-
-    // Helper method to get words for a category
+    }    // Helper method to get words for a category
     private List<String> getWordsForCategory(String category, int count) {
         // This should be implemented in your WordSelection class
         // For now, adding a temporary implementation

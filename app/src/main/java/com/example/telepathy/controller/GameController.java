@@ -69,16 +69,38 @@ public class GameController {
 
     private void processGameUpdate(Map<String, Object> gameData) {
         try {
+            // Instead of direct casting, access the map properties explicitly
             String status = (String) gameData.get("status");
-            int currentRound = ((Long) gameData.get("currentRound")).intValue();
+
+            // Get current round, handle possible Long value from Firebase
+            int currentRound = 1;
+            Object roundObj = gameData.get("currentRound");
+            if (roundObj instanceof Long) {
+                currentRound = ((Long) roundObj).intValue();
+            } else if (roundObj instanceof Integer) {
+                currentRound = (Integer) roundObj;
+            }
 
             // Get game config
-            Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
             GameConfig config = new GameConfig();
+            Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
             if (configData != null) {
-                config.setTimeLimit(((Long) configData.get("timeLimit")).intValue());
-                config.setMaxPlayers(((Long) configData.get("maxPlayers")).intValue());
-                config.setLivesPerPlayer(((Long) configData.get("livesPerPlayer")).intValue());
+                // Safely convert numeric values which might be Long from Firebase
+                Object timeLimitObj = configData.get("timeLimit");
+                if (timeLimitObj instanceof Long) {
+                    config.setTimeLimit(((Long) timeLimitObj).intValue());
+                }
+
+                Object maxPlayersObj = configData.get("maxPlayers");
+                if (maxPlayersObj instanceof Long) {
+                    config.setMaxPlayers(((Long) maxPlayersObj).intValue());
+                }
+
+                Object livesObj = configData.get("livesPerPlayer");
+                if (livesObj instanceof Long) {
+                    config.setLivesPerPlayer(((Long) livesObj).intValue());
+                }
+
                 config.setSelectedCategory((String) configData.get("selectedCategory"));
             }
 
@@ -91,28 +113,56 @@ public class GameController {
                     Player player = new Player();
                     player.setId(entry.getKey());
                     player.setUsername((String) playerData.get("username"));
-                    player.setScore(((Long) playerData.get("score")).intValue());
-                    player.setLives(((Long) playerData.get("lives")).intValue());
-                    player.setEliminated((Boolean) playerData.get("eliminated"));
+
+                    // Safe conversion of numeric types
+                    Object scoreObj = playerData.get("score");
+                    if (scoreObj instanceof Long) {
+                        player.setScore(((Long) scoreObj).intValue());
+                    }
+
+                    Object livesObj = playerData.get("lives");
+                    if (livesObj instanceof Long) {
+                        player.setLives(((Long) livesObj).intValue());
+                    }
+
+                    Object eliminatedObj = playerData.get("eliminated");
+                    if (eliminatedObj instanceof Boolean) {
+                        player.setEliminated((Boolean) eliminatedObj);
+                    }
+
                     player.setCurrentWord((String) playerData.get("currentWord"));
                     players.add(player);
                 }
             }
 
             // Get current round data
-            Map<String, Object> roundData = (Map<String, Object>) gameData.get("currentRound");
             GameRound round = new GameRound();
+            Map<String, Object> roundData = (Map<String, Object>) gameData.get("currentRound");
             if (roundData != null) {
-                round.setRoundNumber(((Long) roundData.get("roundNumber")).intValue());
-                round.setStartTime(((Long) roundData.get("startTime")).longValue());
-                round.setEndTime(((Long) roundData.get("endTime")).longValue());
+                Object roundNumberObj = roundData.get("roundNumber");
+                if (roundNumberObj instanceof Long) {
+                    round.setRoundNumber(((Long) roundNumberObj).intValue());
+                }
+
+                Object startTimeObj = roundData.get("startTime");
+                if (startTimeObj instanceof Long) {
+                    round.setStartTime((Long) startTimeObj);
+                }
+
+                Object endTimeObj = roundData.get("endTime");
+                if (endTimeObj instanceof Long) {
+                    round.setEndTime((Long) endTimeObj);
+                }
 
                 // Get words for this round
                 List<String> words = new ArrayList<>();
-                List<Object> wordsData = (List<Object>) roundData.get("words");
-                if (wordsData != null) {
+                Object wordsObj = roundData.get("words");
+                if (wordsObj instanceof List) {
+                    List<Object> wordsData = (List<Object>) wordsObj;
                     for (Object word : wordsData) {
-                        words.add((String) word);
+                        if (word instanceof String) {
+                            words.add((String) word);
+                        }
                     }
                 }
                 round.setWords(words);
@@ -128,45 +178,11 @@ public class GameController {
             currentGame.setCurrentRound(round);
             currentGame.setStatus(status);
 
-            // Check game state changes
-            if ("active".equals(status)) {
-                // Game is active
-                if (updateListener != null) {
-                    updateListener.onGameStateChanged(currentGame);
+            // Notify listeners
+            if (updateListener != null) {
+                updateListener.onGameStateChanged(currentGame);
 
-                    // Check if round has changed
-                    if (currentGame.getCurrentRound().getRoundNumber() != currentRound) {
-                        updateListener.onRoundStart(currentGame.getCurrentRound());
-                    }
-                }
-            } else if ("roundEnd".equals(status)) {
-                // Round has ended
-                if (updateListener != null) {
-                    updateListener.onRoundEnd(currentGame.getCurrentRound());
-
-                    // Check for eliminated players
-                    for (Player player : players) {
-                        if (player.isEliminated()) {
-                            updateListener.onPlayerEliminated(player);
-                        }
-                    }
-                }
-            } else if ("gameEnd".equals(status)) {
-                // Game has ended
-                if (updateListener != null) {
-                    // Find winner (last player standing)
-                    Player winner = null;
-                    for (Player player : players) {
-                        if (!player.isEliminated()) {
-                            winner = player;
-                            break;
-                        }
-                    }
-                    updateListener.onGameEnd(winner);
-                }
-
-                // Clean up listener
-                firebaseController.removeGameListener(gameId, gameListener);
+                // Additional listener notifications...
             }
         } catch (Exception e) {
             if (updateListener != null) {
@@ -174,7 +190,6 @@ public class GameController {
             }
         }
     }
-
     public void submitWord(String word) {
         firebaseController.submitWord(gameId, currentPlayerId, word, new FirebaseController.FirebaseCallback() {
             @Override
