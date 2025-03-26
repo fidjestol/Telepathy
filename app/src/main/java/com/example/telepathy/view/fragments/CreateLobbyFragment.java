@@ -17,13 +17,16 @@ import androidx.fragment.app.Fragment;
 
 import com.example.telepathy.R;
 import com.example.telepathy.controller.FirebaseController;
-import com.example.telepathy.model.GameConfig;
 import com.example.telepathy.model.Lobby;
 import com.example.telepathy.model.Player;
 import com.example.telepathy.utils.Constants;
 import com.example.telepathy.view.activities.MainActivity;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 public class CreateLobbyFragment extends Fragment {
@@ -31,7 +34,6 @@ public class CreateLobbyFragment extends Fragment {
     private EditText timeLimitEditText;
     private EditText livesEditText;
     private Spinner categorySpinner;
-    private Button createButton;
     private ProgressBar progressBar;
 
     private FirebaseController firebaseController;
@@ -43,44 +45,25 @@ public class CreateLobbyFragment extends Fragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_create_lobby, container, false);
 
-        // Get player data from arguments
         if (getArguments() != null) {
             playerId = getArguments().getString("playerId");
             playerName = getArguments().getString("playerName");
         }
 
-        // Initialize Firebase controller
         firebaseController = FirebaseController.getInstance();
 
-        // Initialize UI components
         lobbyNameEditText = view.findViewById(R.id.lobbyNameEditText);
         timeLimitEditText = view.findViewById(R.id.timeLimitEditText);
         livesEditText = view.findViewById(R.id.livesEditText);
         categorySpinner = view.findViewById(R.id.categorySpinner);
-        createButton = view.findViewById(R.id.createButton);
+        Button createButton = view.findViewById(R.id.createButton);
         progressBar = view.findViewById(R.id.progressBar);
 
-        // Set default values
         timeLimitEditText.setText(String.valueOf(Constants.DEFAULT_TIME_LIMIT));
         livesEditText.setText(String.valueOf(Constants.DEFAULT_LIVES));
 
-        // Set up category spinner
-        List<String> categories = Arrays.asList(
-                Constants.CATEGORY_ANIMALS,
-                Constants.CATEGORY_COUNTRIES,
-                Constants.CATEGORY_FOODS,
-                Constants.CATEGORY_SPORTS
-        );
+        loadCategoriesFromFirebase();
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                requireContext(),
-                android.R.layout.simple_spinner_item,
-                categories
-        );
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        categorySpinner.setAdapter(adapter);
-
-        // Set click listener
         createButton.setOnClickListener(v -> createLobby());
 
         return view;
@@ -90,9 +73,10 @@ public class CreateLobbyFragment extends Fragment {
         String lobbyName = lobbyNameEditText.getText().toString().trim();
         String timeLimitStr = timeLimitEditText.getText().toString().trim();
         String livesStr = livesEditText.getText().toString().trim();
-        String selectedCategory = categorySpinner.getSelectedItem().toString();
+        String selectedCategory = categorySpinner.getSelectedItem() != null
+                ? categorySpinner.getSelectedItem().toString()
+                : null;
 
-        // Validate input
         if (lobbyName.isEmpty()) {
             lobbyNameEditText.setError("Lobby name is required");
             lobbyNameEditText.requestFocus();
@@ -114,7 +98,6 @@ public class CreateLobbyFragment extends Fragment {
         int timeLimit = Integer.parseInt(timeLimitStr);
         int lives = Integer.parseInt(livesStr);
 
-        // Validate values
         if (timeLimit < 10 || timeLimit > 120) {
             timeLimitEditText.setError("Time limit must be between 10 and 120 seconds");
             timeLimitEditText.requestFocus();
@@ -127,32 +110,18 @@ public class CreateLobbyFragment extends Fragment {
             return;
         }
 
-        // Show progress bar
         progressBar.setVisibility(View.VISIBLE);
 
-        // Create player instance
         Player host = new Player(playerName);
         host.setId(playerId);
         host.setHost(true);
 
-        // Create game config
-        GameConfig config = new GameConfig(timeLimit, Constants.DEFAULT_MAX_PLAYERS, lives, selectedCategory);
-
-        // Create lobby
-        Lobby lobby = new Lobby(lobbyName, host);
-        lobby.setGameConfig(config);
-
-        // Save to Firebase
-        firebaseController.createLobby(lobbyName, host, new FirebaseController.FirebaseCallback() {
+        firebaseController.createLobby(lobbyName, host, selectedCategory, new FirebaseController.FirebaseCallback() {
             @Override
             public void onSuccess(Object result) {
                 progressBar.setVisibility(View.GONE);
                 Lobby createdLobby = (Lobby) result;
-
-                // Navigate to lobby activity/fragment
                 Toast.makeText(requireContext(), "Lobby created successfully!", Toast.LENGTH_SHORT).show();
-
-                // Navigate to game activity directly (or you could create a LobbyActivity to wait for players)
                 if (getActivity() instanceof MainActivity) {
                     ((MainActivity) getActivity()).navigateToGameActivity(createdLobby.getId(), null);
                 }
@@ -164,5 +133,33 @@ public class CreateLobbyFragment extends Fragment {
                 Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private void loadCategoriesFromFirebase() {
+        FirebaseDatabase.getInstance().getReference("category")
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        List<String> categories = new ArrayList<>();
+                        for (DataSnapshot child : snapshot.getChildren()) {
+                            categories.add(child.getKey());
+                        }
+
+                        if (getContext() != null && !categories.isEmpty()) {
+                            ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                                    requireContext(),
+                                    android.R.layout.simple_spinner_item,
+                                    categories
+                            );
+                            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                            categorySpinner.setAdapter(adapter);
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {
+                        Toast.makeText(getContext(), "Failed to load categories", Toast.LENGTH_SHORT).show();
+                    }
+                });
     }
 }

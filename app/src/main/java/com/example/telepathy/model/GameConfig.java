@@ -1,5 +1,10 @@
 package com.example.telepathy.model;
 
+import android.util.Log;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.ValueEventListener;
+import androidx.annotation.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,17 +17,11 @@ public class GameConfig {
 
     // Default constructor for Firebase
     public GameConfig() {
-        // Initialize with default values
         this.timeLimit = 30;
         this.maxPlayers = 8;
         this.livesPerPlayer = 3;
-        //TODO: replace hardcoded categories with categories in realtime db
         this.categories = new ArrayList<>();
-        this.categories.add("Animals");
-        this.categories.add("Countries");
-        this.categories.add("Foods");
-        this.categories.add("Sports");
-        this.selectedCategory = "Animals";
+        this.selectedCategory = null; // Will be set later
     }
 
     // Constructor with custom parameters
@@ -30,16 +29,34 @@ public class GameConfig {
         this.timeLimit = timeLimit;
         this.maxPlayers = maxPlayers;
         this.livesPerPlayer = livesPerPlayer;
-        //TODO: replace hardcoded categories with categories from db
         this.categories = new ArrayList<>();
-        this.categories.add("Animals");
-        this.categories.add("Countries");
-        this.categories.add("Foods");
-        this.categories.add("Sports");
         this.selectedCategory = selectedCategory;
     }
 
-    // Getters and setters
+    public void loadCategoriesFromDatabase(Database database, Runnable onComplete) {
+        database.getReference().child("category").addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                categories.clear();
+                for (DataSnapshot child : snapshot.getChildren()) {
+                    categories.add(child.getKey());
+                }
+                if (!categories.isEmpty() && selectedCategory == null) {
+                    selectedCategory = categories.get(0); // fallback
+                }
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Log.e("GameConfig", "Failed to load categories: " + error.getMessage());
+            }
+        });
+    }
+
+    // Getters and Setters
     public int getTimeLimit() {
         return timeLimit;
     }
@@ -72,11 +89,6 @@ public class GameConfig {
         this.categories = categories;
     }
 
-    public void addCategory(String category) {
-        if (!this.categories.contains(category)) {
-            this.categories.add(category);
-        }
-    }
 
     public String getSelectedCategory() {
         return selectedCategory;
