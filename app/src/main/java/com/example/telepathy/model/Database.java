@@ -3,6 +3,9 @@ package com.example.telepathy.model;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 
+import java.util.Arrays;
+import java.util.List;
+
 public class Database {
     private static Database instance;
     private DatabaseReference databaseReference;
@@ -34,6 +37,10 @@ public class Database {
         return databaseReference.child("games");
     }
 
+    public DatabaseReference getWordbankReference() {
+        return databaseReference.child("wordbanks");
+    }
+
     public DatabaseReference getUserReference(String userId) {
         return getUsersReference().child(userId);
     }
@@ -44,5 +51,14 @@ public class Database {
 
     public DatabaseReference getGameReference(String gameId) {
         return getGamesReference().child(gameId);
+    }
+
+
+    public void addCategory() {
+        // Add categories to database
+        //TODO: avoid duplicate categories + words
+        databaseReference.child("category").setValue("Animals");
+        List<String> words = Arrays.asList("dog", "cat");
+        databaseReference.child("category").child("Animals").setValue(words);
     }
 }

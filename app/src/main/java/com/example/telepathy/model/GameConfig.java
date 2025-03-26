@@ -16,6 +16,7 @@ public class GameConfig {
         this.timeLimit = 30;
         this.maxPlayers = 8;
         this.livesPerPlayer = 3;
+        //TODO: replace hardcoded categories with categories in realtime db
         this.categories = new ArrayList<>();
         this.categories.add("Animals");
         this.categories.add("Countries");
@@ -29,6 +30,7 @@ public class GameConfig {
         this.timeLimit = timeLimit;
         this.maxPlayers = maxPlayers;
         this.livesPerPlayer = livesPerPlayer;
+        //TODO: replace hardcoded categories with categories from db
         this.categories = new ArrayList<>();
         this.categories.add("Animals");
         this.categories.add("Countries");

@@ -14,19 +14,17 @@ import androidx.fragment.app.FragmentManager;
 
 import com.example.telepathy.R;
 import com.example.telepathy.controller.FirebaseController;
+import com.example.telepathy.model.Database;
 import com.example.telepathy.model.Lobby;
 import com.example.telepathy.model.Player;
 import com.example.telepathy.utils.PreferenceManager;
 import com.example.telepathy.view.fragments.CreateLobbyFragment;
 import com.example.telepathy.view.fragments.JoinLobbyFragment;
 import com.example.telepathy.view.fragments.MenuFragment;
-import com.google.firebase.FirebaseApp;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
-import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
-import com.google.firebase.firestore.FirebaseFirestore;
 
 public class MainActivity extends AppCompatActivity {
     private FirebaseController firebaseController;
@@ -41,11 +39,11 @@ public class MainActivity extends AppCompatActivity {
         // Initialize Firebase controller
         firebaseController = FirebaseController.getInstance();
 
-        // Initialize Firestore
-        FirebaseFirestore db = FirebaseFirestore.getInstance();
+        // Initialize Realtime db
+        Database db = Database.getInstance();
 
-        // Reference to the 'wordbank' collection
-        db.collection("wordbank").get().addOnCompleteListener(task -> {
+        // Reference to the 'wordbank' collection (this is for Firestore - we're using Realtime database)
+/*        db.collection("wordbank").get().addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
                 for (var document : task.getResult()) {
                     String categoryName = document.getId();
@@ -54,11 +52,10 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 System.out.println("Error fetching categories: " + task.getException().getMessage());
             }
-        });
+        });*/
 
         // Test writing to database, message should be displayed in Firebase console
-        DatabaseReference database = FirebaseDatabase.getInstance().getReference();
-        database.child("test").setValue("Firebase fungerer!")
+        db.getReference().child("test").setValue("Firebase fungerer!")
                 .addOnSuccessListener(aVoid -> Log.d("FirebaseTest", "Data lagt til"))
                         .addOnFailureListener(e -> Log.e("FirebaseTest", "Feil: ", e));
 
@@ -103,6 +100,8 @@ public class MainActivity extends AppCompatActivity {
                         Toast.LENGTH_SHORT).show();
             }
         });
+        // Test if writing to db works
+        Database.getInstance().addCategory();
     }
 
     @Override
