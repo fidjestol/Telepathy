@@ -111,7 +111,7 @@ public class JoinLobbyFragment extends Fragment implements LobbyListAdapter.OnLo
         progressBar.setVisibility(View.VISIBLE);
 
         // Create player instance
-        Player player = new Player(playerName);
+        Player player = new Player(playerId, playerName);
         player.setId(playerId);
 
         // Join lobby
