@@ -13,7 +13,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.telepathy.R;
 import com.example.telepathy.controller.FirebaseController;
-import com.example.telepathy.model.Player;
+import com.example.telepathy.model.User;
 import com.example.telepathy.utils.PreferenceManager;
 
 public class LoginActivity extends AppCompatActivity {
@@ -76,10 +76,12 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onSuccess(Object result) {
                 progressBar.setVisibility(View.GONE);
-                Player player = (Player) result;
+
+                // result is an async return from Firebase
+                User user = (User) result;
 
                 // Save user data
-                preferenceManager.saveUserData(player);
+                preferenceManager.saveUserData(user);
 
                 // Navigate to main activity
                 navigateToMainActivity();

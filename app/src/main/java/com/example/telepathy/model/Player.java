@@ -12,12 +12,10 @@ public class Player {
     private boolean isEliminated;
 
     // Default constructor for Firebase
-    public Player() {
-        // Required empty constructor for Firebase
-    }
+    public Player() {}
 
-    public Player(String username) {
-        this.id = UUID.randomUUID().toString();
+    public Player(String id, String username) {
+        this.id = id;
         this.username = username;
         this.score = 0;
         this.lives = 3; // Default value, configurable
@@ -92,4 +90,9 @@ public class Player {
     public void setEliminated(boolean eliminated) {
         isEliminated = eliminated;
     }
+
+    public static Player fromUser(User user) {
+        return new Player(user.getId(), user.getUsername());
+    }
+
 }

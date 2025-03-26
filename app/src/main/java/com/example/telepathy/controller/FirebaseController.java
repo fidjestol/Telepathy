@@ -1,8 +1,11 @@
 package com.example.telepathy.controller;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 
 import com.example.telepathy.model.Database;
+import com.example.telepathy.model.User;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.DataSnapshot;
@@ -75,22 +78,20 @@ public class FirebaseController {
         auth.createUserWithEmailAndPassword(email, password)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
-                        FirebaseUser user = auth.getCurrentUser();
-                        if (user != null) {
-                            // Create player profile
-                            Player newPlayer = new Player(username);
-                            newPlayer.setId(user.getUid());
-
+                        FirebaseUser firebaseUser = auth.getCurrentUser();
+                        if (firebaseUser != null) {
+                            // Create user
+                            User newUser = new User(firebaseUser.getUid(), username);
                             // Save to database
-                            database.child("users").child(user.getUid()).setValue(newPlayer)
+                            database.child("users").child(firebaseUser.getUid()).setValue(newUser)
                                     .addOnCompleteListener(saveTask -> {
                                         if (saveTask.isSuccessful()) {
-                                            callback.onSuccess(newPlayer);
+                                            callback.onSuccess(newUser);
                                         } else {
                                             callback.onFailure("Failed to save user data");
                                         }
                                     });
-                        }
+                        } else {callback.onFailure("FirebaseUser is null after successful registration");}
                     } else {
                         callback.onFailure(task.getException() != null ?
                                 task.getException().getMessage() : "Registration failed");
@@ -102,13 +103,13 @@ public class FirebaseController {
         auth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
-                        FirebaseUser user = auth.getCurrentUser();
-                        if (user != null) {
-                            database.child("users").child(user.getUid()).get()
+                        FirebaseUser firebaseUser = auth.getCurrentUser();
+                        if (firebaseUser != null) {
+                            database.child("users").child(firebaseUser.getUid()).get()
                                     .addOnCompleteListener(dataTask -> {
                                         if (dataTask.isSuccessful() && dataTask.getResult() != null) {
-                                            Player player = dataTask.getResult().getValue(Player.class);
-                                            callback.onSuccess(player);
+                                            User user = dataTask.getResult().getValue(User.class);
+                                            callback.onSuccess(user);
                                         } else {
                                             callback.onFailure("Failed to get user data");
                                         }
