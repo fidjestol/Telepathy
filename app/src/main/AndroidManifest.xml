@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Required for Firebase Firestore -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:name=".TelepathyApplication"
         android:allowBackup="true"
@@ -12,7 +15,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Telepathy"
+        android:usesCleartextTraffic="true"
         tools:targetApi="31">
+        <!-- usesCleartextTraffic is for local development, Firebase emulator connections, or testing environments -->
 
         <!-- MainActivity is already declared -->
         <activity

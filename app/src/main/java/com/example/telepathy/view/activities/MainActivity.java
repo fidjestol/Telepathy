@@ -26,6 +26,7 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 public class MainActivity extends AppCompatActivity {
     private FirebaseController firebaseController;
@@ -39,6 +40,21 @@ public class MainActivity extends AppCompatActivity {
 
         // Initialize Firebase controller
         firebaseController = FirebaseController.getInstance();
+
+        // Initialize Firestore
+        FirebaseFirestore db = FirebaseFirestore.getInstance();
+
+        // Reference to the 'wordbank' collection
+        db.collection("wordbank").get().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                for (var document : task.getResult()) {
+                    String categoryName = document.getId();
+                    System.out.println("Category: " + categoryName);
+                }
+            } else {
+                System.out.println("Error fetching categories: " + task.getException().getMessage());
+            }
+        });
 
         // Test writing to database, message should be displayed in Firebase console
         DatabaseReference database = FirebaseDatabase.getInstance().getReference();
