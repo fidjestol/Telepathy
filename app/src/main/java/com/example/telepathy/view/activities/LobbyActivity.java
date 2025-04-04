@@ -91,11 +91,18 @@ public class LobbyActivity extends AppCompatActivity {
                 .child("lobbies").child(lobbyId);
 
         lobbyListener = new ValueEventListener() {
+            // In the lobbyListener's onDataChange method (LobbyActivity.java)
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 Lobby lobby = snapshot.getValue(Lobby.class);
                 if (lobby != null) {
                     updateUI(lobby);
+
+                    // Check if a game has been started
+                    if (lobby.getGameId() != null && !lobby.getGameId().isEmpty()) {
+                        // Game has been started, navigate to GameActivity
+                        navigateToGameActivity(lobby.getGameId());
+                    }
                 }
             }
 
