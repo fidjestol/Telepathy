@@ -282,7 +282,7 @@ public class FirebaseController {
                                 return;
                             }
 
-                            if (playersMap.size() < 2) {
+                            if (playersMap.size() < 1) {
                                 callback.onFailure("Cannot start game: not enough players");
                                 return;
                             }
@@ -385,6 +385,17 @@ public class FirebaseController {
         // This should be implemented in your WordSelection class
         // For now, adding a temporary implementation
         return com.example.telepathy.model.WordSelection.getRandomWords(category, count);
+    }
+
+    public void endCurrentRound(String gameId, FirebaseCallback callback) {
+        database.child("games").child(gameId).child("status").setValue("roundEnd")
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        callback.onSuccess(null);
+                    } else {
+                        callback.onFailure("Failed to end round");
+                    }
+                });
     }
     // Game methods
     public void submitWord(String gameId, String playerId, String word, FirebaseCallback callback) {

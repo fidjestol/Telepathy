@@ -129,6 +129,14 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             return;
         }
 
+        // Check if player has already submitted a word for this round
+        for (Player player : players) {
+            if (player.getId().equals(playerId) && player.getCurrentWord() != null && !player.getCurrentWord().isEmpty()) {
+                Toast.makeText(this, "You've already submitted a word for this round", Toast.LENGTH_SHORT).show();
+                return;
+            }
+        }
+
         String word = wordInputEditText.getText().toString().trim().toLowerCase();
 
         if (word.isEmpty()) {
@@ -136,8 +144,29 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             return;
         }
 
+        // Check if word is in the valid words list
+        boolean isValidWord = false;
+        for (String validWord : validWords) {
+            if (validWord.equalsIgnoreCase(word)) {
+                isValidWord = true;
+                break;
+            }
+        }
+
+        if (!isValidWord) {
+            Toast.makeText(this, "Word is not in the valid words list", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         // Validate and submit word
         gameController.validateWord(word);
+
+        // Disable input after submission until next round
+        wordInputEditText.setEnabled(false);
+        submitButton.setEnabled(false);
+
+        // Show feedback
+        Toast.makeText(this, "Word submitted! Waiting for other players...", Toast.LENGTH_SHORT).show();
 
         // Clear input field
         wordInputEditText.setText("");
@@ -212,8 +241,11 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             long duration = (round.getEndTime() - round.getStartTime());
             startTimer(duration);
 
-            // Clear input
+            // Clear input and enable it for new round
             wordInputEditText.setText("");
+            wordInputEditText.setEnabled(true);
+            submitButton.setEnabled(true);
+            isRoundActive = true;
 
             // Show toast
             Toast.makeText(this, "Round " + round.getRoundNumber() + " started", Toast.LENGTH_SHORT).show();

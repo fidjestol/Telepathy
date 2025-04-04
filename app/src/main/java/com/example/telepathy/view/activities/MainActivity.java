@@ -59,8 +59,8 @@ public class MainActivity extends AppCompatActivity {
         }*/
 
         // Temporary: Create a dummy player for testing
-        currentPlayer = new Player("Marcello");
-        currentPlayer.setId("marcello");
+        currentPlayer = new Player("Marcello2");
+        currentPlayer.setId("marcello2");
 
 
         // Load menu fragment
