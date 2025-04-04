@@ -194,6 +194,14 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
                     break;
                 }
             }
+
+            // Update word list if there's an active round
+            if (game.getCurrentRound() != null) {
+                validWords.clear();
+                validWords.addAll(game.getCurrentRound().getWords());
+                wordListAdapter.notifyDataSetChanged();
+                isRoundActive = true;
+            }
         });
     }
 
@@ -336,6 +344,5 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             gameController.cleanup();
         }
     }
-
 
 }
