@@ -19,9 +19,9 @@ public class GameTest {
     @Before
     public void setUp() {
         // Create test players
-        player1 = new Player("Player1");
-        player2 = new Player("Player2");
-        player3 = new Player("Player3");
+        player1 = new Player("Player1", "Per");
+        player2 = new Player("Player2", "Pål");
+        player3 = new Player("Player3", "Espen");
 
         // Create config
         config = new GameConfig(30, 5, 3, "Animals");

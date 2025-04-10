@@ -15,6 +15,7 @@ import androidx.fragment.app.FragmentManager;
 import com.example.telepathy.R;
 import com.example.telepathy.controller.FirebaseController;
 import com.example.telepathy.model.Lobby;
+import com.example.telepathy.model.User;
 import com.example.telepathy.model.Player;
 import com.example.telepathy.utils.PreferenceManager;
 import com.example.telepathy.view.fragments.CreateLobbyFragment;
@@ -40,27 +41,24 @@ public class MainActivity extends AppCompatActivity {
         // Initialize Firebase controller
         firebaseController = FirebaseController.getInstance();
 
-        // Test writing to database, message should be displayed in Firebase console
-        DatabaseReference database = FirebaseDatabase.getInstance().getReference();
-        database.child("test").setValue("Firebase fungerer!")
-                .addOnSuccessListener(aVoid -> Log.d("FirebaseTest", "Data lagt til"))
-                        .addOnFailureListener(e -> Log.e("FirebaseTest", "Feil: ", e));
-
         // Test Firebase connection
         testFirebaseConnection();
 
-        // Initialize Firebase controller
         preferenceManager = new PreferenceManager(this);
 
         // Check if user is logged in
-        /*if (!preferenceManager.isLoggedIn()) {
+        if (!preferenceManager.isLoggedIn()) {
             navigateToLoginActivity();
             return;
-        }*/
+        }
 
-        // Temporary: Create a dummy player for testing
-        currentPlayer = new Player("Marcello2");
-        currentPlayer.setId("marcello2");
+        User user = preferenceManager.getUserData();
+        if (user == null) {
+            navigateToLoginActivity();
+            return;
+        }
+
+        currentPlayer = Player.fromUser(user);
 
 
         // Load menu fragment

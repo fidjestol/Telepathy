@@ -131,7 +131,7 @@ public class CreateLobbyFragment extends Fragment {
         progressBar.setVisibility(View.VISIBLE);
 
         // Create player instance
-        Player host = new Player(playerName);
+        Player host = new Player(playerId, playerName);
         host.setId(playerId);
         host.setHost(true);
 
