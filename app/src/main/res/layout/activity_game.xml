@@ -104,6 +104,28 @@
         app:layout_constraintVertical_weight="2"
         tools:listitem="@layout/item_word" />
 
+    <TextView
+        android:id="@+id/wordHistoryLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Word History"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="@id/wordsRecyclerView"
+        app:layout_constraintTop_toBottomOf="@id/wordsRecyclerView"
+        android:layout_marginTop="16dp" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/wordHistoryRecyclerView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/recycler_background"
+        android:padding="8dp"
+        app:layout_constraintBottom_toTopOf="@+id/wordInputEditText"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/playersRecyclerView"
+        app:layout_constraintTop_toBottomOf="@+id/wordHistoryLabel" />
+
     <!-- Word input area -->
     <EditText
         android:id="@+id/wordInputEditText"

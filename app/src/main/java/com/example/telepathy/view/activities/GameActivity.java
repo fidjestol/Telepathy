@@ -2,8 +2,10 @@ package com.example.telepathy.view.activities;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -18,15 +20,19 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.telepathy.R;
+import com.example.telepathy.controller.FirebaseController;
 import com.example.telepathy.controller.GameController;
 import com.example.telepathy.model.Game;
 import com.example.telepathy.model.GameRound;
 import com.example.telepathy.model.Player;
 import com.example.telepathy.view.adapters.PlayerListAdapter;
+import com.example.telepathy.view.adapters.WordHistoryAdapter;
 import com.example.telepathy.view.adapters.WordListAdapter;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class GameActivity extends AppCompatActivity implements GameController.GameUpdateListener {
     private TextView lobbyNameTextView;
@@ -41,6 +47,10 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     private View waitingLayout;
     private ProgressBar progressBar;
 
+    private RecyclerView wordHistoryRecyclerView;
+    private WordHistoryAdapter wordHistoryAdapter;
+    private List<String> usedWords = new ArrayList<>(); // To store words that have been used
+
     private PlayerListAdapter playerListAdapter;
     private WordListAdapter wordListAdapter;
     private GameController gameController;
@@ -51,8 +61,12 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     private List<Player> players = new ArrayList<>();
     private List<String> validWords = new ArrayList<>();
 
+    private boolean isHost;
+
     private CountDownTimer countDownTimer;
     private boolean isRoundActive = false;
+
+    private FirebaseController firebaseController;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +77,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         lobbyId = getIntent().getStringExtra("lobbyId");
         gameId = getIntent().getStringExtra("gameId");
         playerId = getIntent().getStringExtra("playerId");
+        isHost = getIntent().getBooleanExtra("isHost", false); // Get host status
 
         // Initialize UI components
         lobbyNameTextView = findViewById(R.id.lobbyNameTextView);
@@ -85,6 +100,11 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         wordsRecyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         wordListAdapter = new WordListAdapter(validWords);
         wordsRecyclerView.setAdapter(wordListAdapter);
+
+        wordHistoryRecyclerView = findViewById(R.id.wordHistoryRecyclerView);
+        wordHistoryRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+        wordHistoryAdapter = new WordHistoryAdapter(usedWords);
+        wordHistoryRecyclerView.setAdapter(wordHistoryAdapter);
 
         // Set click listener
         submitButton.setOnClickListener(v -> submitWord());
@@ -232,10 +252,14 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         runOnUiThread(() -> {
             roundTextView.setText(getString(R.string.round_number, round.getRoundNumber()));
 
-            // Update word list
+            // Update available words for this round
             validWords.clear();
             validWords.addAll(round.getWords());
             wordListAdapter.notifyDataSetChanged();
+
+            // Reset player submission display
+            playerListAdapter.setShowSubmissions(false);
+            playerListAdapter.notifyDataSetChanged();
 
             // Start timer
             long duration = (round.getEndTime() - round.getStartTime());
@@ -266,8 +290,73 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             wordInputEditText.setEnabled(false);
             submitButton.setEnabled(false);
 
-            Toast.makeText(this, "Round ended", Toast.LENGTH_SHORT).show();
+            // Show player submissions in the UI (not in a dialog)
+            updatePlayerSubmissions();
+
+            // Display round end message
+            Toast.makeText(this, "Round ended! Next round starting soon...", Toast.LENGTH_SHORT).show();
+
+            // If this is the host, schedule the next round after 5 seconds
+            if (isHost) {
+                new Handler().postDelayed(() -> {
+                    // Check if game should continue
+                    int activePlayers = 0;
+                    for (Player player : players) {
+                        if (!player.isEliminated()) {
+                            activePlayers++;
+                        }
+                    }
+
+                    if (activePlayers >= 2) {
+                        // Start next round
+                        firebaseController.startNextRound(gameId, new FirebaseController.FirebaseCallback() {
+                            @Override
+                            public void onSuccess(Object result) {
+                                // Next round will be started via Firebase listener
+                            }
+
+                            @Override
+                            public void onFailure(String error) {
+                                Toast.makeText(GameActivity.this, "Error starting next round: " + error,
+                                        Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                    }
+                    // If active players < 2, the game will end automatically via Firebase
+                }, 5000); // 5 second delay before next round
+            }
         });
+    }
+
+    private void updatePlayerSubmissions() {
+        // Find duplicate words
+        Map<String, Integer> wordCounts = new HashMap<>();
+        for (Player player : players) {
+            String word = player.getCurrentWord();
+            if (word != null && !word.isEmpty()) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    wordCounts.put(word, wordCounts.getOrDefault(word, 0) + 1);
+                }
+            }
+        }
+
+        // Update the player adapter to show submissions
+        // This requires modifying your PlayerListAdapter to display the current word
+        playerListAdapter.setShowSubmissions(true);
+        playerListAdapter.setDuplicateWords(wordCounts);
+        playerListAdapter.notifyDataSetChanged();
+
+        // Add submitted words to the word history
+        for (Player player : players) {
+            String word = player.getCurrentWord();
+            if (word != null && !word.isEmpty() && !usedWords.contains(word)) {
+                usedWords.add(word);
+            }
+        }
+
+        // Update the words list
+        wordListAdapter.notifyDataSetChanged();
+        wordHistoryAdapter.notifyDataSetChanged();
     }
 
     @SuppressLint("NotifyDataSetChanged")

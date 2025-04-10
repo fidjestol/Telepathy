@@ -1,5 +1,7 @@
 package com.example.telepathy.controller;
 
+import android.os.Handler;
+
 import androidx.annotation.NonNull;
 
 import com.google.firebase.database.DataSnapshot;
@@ -251,7 +253,8 @@ public class GameController {
         currentGame.setStatus(status);
     }
 
-    // Notify listeners about state changes
+    private boolean isProcessingRoundEnd = false;
+
     private void notifyStateChanges(String status, GameRound round, List<Player> players, boolean isNewRound) {
         if (updateListener != null) {
             updateListener.onGameStateChanged(currentGame);
@@ -259,8 +262,11 @@ public class GameController {
             // Notify about new round if applicable
             if (isNewRound && "active".equals(status)) {
                 updateListener.onRoundStart(round);
-            } else if ("roundEnd".equals(status)) {
+            } else if ("roundEnd".equals(status) && !isProcessingRoundEnd) {
+                isProcessingRoundEnd = true;
                 updateListener.onRoundEnd(round);
+                // Add a delay before allowing another round end to be processed
+                new Handler().postDelayed(() -> isProcessingRoundEnd = false, 3000);
             } else if ("gameEnd".equals(status)) {
                 // Find winner
                 Player winner = null;

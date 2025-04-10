@@ -414,6 +414,89 @@ public class FirebaseController {
         database.child("games").child(gameId).addValueEventListener(listener);
     }
 
+    public void startNextRound(String gameId, FirebaseCallback callback) {
+        // First get the current game data
+        database.child("games").child(gameId).get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult() != null) {
+                        try {
+                            Map<String, Object> gameData = (Map<String, Object>) task.getResult().getValue();
+                            if (gameData != null) {
+                                // Extract current round number
+                                Map<String, Object> currentRoundData = (Map<String, Object>) gameData.get("currentRound");
+                                int currentRoundNumber = 1;
+
+                                if (currentRoundData != null && currentRoundData.containsKey("roundNumber")) {
+                                    Object roundNumberObj = currentRoundData.get("roundNumber");
+                                    if (roundNumberObj instanceof Long) {
+                                        currentRoundNumber = ((Long) roundNumberObj).intValue();
+                                    }
+                                }
+
+                                // Get game config for category
+                                Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
+                                String category = "Animals"; // Default
+
+                                if (configData != null && configData.containsKey("selectedCategory")) {
+                                    category = (String) configData.get("selectedCategory");
+                                }
+
+                                // Create new round data
+                                Map<String, Object> newRoundData = new HashMap<>();
+                                newRoundData.put("roundNumber", currentRoundNumber + 1);
+                                newRoundData.put("startTime", System.currentTimeMillis());
+
+                                // Get time limit from config or use default
+                                long timeLimit = 30;
+                                if (configData != null && configData.containsKey("timeLimit")) {
+                                    Object timeLimitObj = configData.get("timeLimit");
+                                    if (timeLimitObj instanceof Long) {
+                                        timeLimit = (Long) timeLimitObj;
+                                    }
+                                }
+
+                                newRoundData.put("endTime", System.currentTimeMillis() + (timeLimit * 1000));
+
+                                // Get new words for this round
+                                List<String> words = WordSelection.getRandomWords(category, 20);
+                                newRoundData.put("words", words);
+
+                                // Clear player word submissions from previous round
+                                Map<String, Object> playersData = (Map<String, Object>) gameData.get("players");
+                                if (playersData != null) {
+                                    for (String playerId : playersData.keySet()) {
+                                        database.child("games").child(gameId).child("players")
+                                                .child(playerId).child("currentWord").setValue("");
+                                    }
+                                }
+
+                                // Update game in database
+                                Map<String, Object> updates = new HashMap<>();
+                                updates.put("currentRound", newRoundData);
+                                updates.put("status", "active");
+
+                                database.child("games").child(gameId).updateChildren(updates)
+                                        .addOnCompleteListener(updateTask -> {
+                                            if (updateTask.isSuccessful()) {
+                                                callback.onSuccess(null);
+                                            } else {
+                                                callback.onFailure("Failed to start next round: " +
+                                                        (updateTask.getException() != null ?
+                                                                updateTask.getException().getMessage() : "unknown error"));
+                                            }
+                                        });
+                            } else {
+                                callback.onFailure("Game data not found");
+                            }
+                        } catch (Exception e) {
+                            callback.onFailure("Error preparing next round: " + e.getMessage());
+                        }
+                    } else {
+                        callback.onFailure("Failed to get game data");
+                    }
+                });
+    }
+
     public void removeGameListener(String gameId, ValueEventListener listener) {
         database.child("games").child(gameId).removeEventListener(listener);
     }

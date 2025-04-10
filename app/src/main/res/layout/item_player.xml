@@ -35,5 +35,13 @@
             android:layout_height="wrap_content"
             android:textSize="12sp"
             tools:text="Active" />
+
+        <TextView
+            android:id="@+id/submissionTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:visibility="gone"
+            tools:text="dog" />
     </LinearLayout>
 </androidx.cardview.widget.CardView>
