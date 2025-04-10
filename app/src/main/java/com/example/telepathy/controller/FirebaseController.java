@@ -257,19 +257,19 @@ public class FirebaseController {
                         try {
                             // Get lobby data
                             DataSnapshot snapshot = task.getResult();
-                            Object lobbyDataObj = snapshot.getValue();
+                            Lobby lobby = snapshot.getValue(Lobby.class);
 
                             // Add debug info
-                            System.out.println("LOBBY DATA TYPE: " + (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
+                            System.out.println("LOBBY DATA TYPE: " + (lobby != null ? lobby.getClass().getName() : "null"));
 
                             // Check data type before casting
-                            if (!(lobbyDataObj instanceof Map)) {
+                            if (!(lobby instanceof Map)) {
                                 callback.onFailure("Invalid lobby data format: " +
-                                        (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
+                                        (lobby != null ? lobby.getClass().getName() : "null"));
                                 return;
                             }
 
-                            Map<String, Object> lobbyData = (Map<String, Object>) lobbyDataObj;
+                            Map<String, Object> lobbyData = (Map<String, Object>) lobby;
 
                             // Get players data - CHECK THE TYPE!
                             Object playersObj = lobbyData.get("players");
@@ -320,59 +320,65 @@ public class FirebaseController {
                             }
 
                             // 👇 Use dynamic word loading from Firebase
-                            com.example.telepathy.model.WordSelection.getRandomWords(
-                                    lobby.getGameConfig().getSelectedCategory(), 20, words -> {
+                            WordSelection.getRandomWords(
+                                    lobby.getGameConfig().getSelectedCategory(), 20, new WordSelection.WordCallback() {
+                                        @Override
+                                        public void onWordsSelected(List<String> words) {
 
-                                        // Game metadata
-                                        Map<String, Object> gameData = new HashMap<>();
-                                        gameData.put("lobbyId", lobbyId);
-                                        gameData.put("players", lobby.getPlayers());
-                                        gameData.put("config", lobby.getGameConfig());
-                                        gameData.put("status", "active");
+                                            // Game metadata
+                                            Map<String, Object> gameData = new HashMap<>();
+                                            gameData.put("lobbyId", lobbyId);
+                                            gameData.put("players", lobby.getPlayers());
+                                            gameData.put("config", lobby.getGameConfig());
+                                            gameData.put("status", "active");
 
-                                        // Round metadata
-                                        Map<String, Object> roundData = new HashMap<>();
-                                        roundData.put("roundNumber", 1);
-                                        roundData.put("startTime", System.currentTimeMillis());
-                                        roundData.put("endTime", System.currentTimeMillis() + (lobby.getGameConfig().getTimeLimit() * 1000L));
-                                        roundData.put("words", words);
+                                            // Round metadata
+                                            Map<String, Object> roundData = new HashMap<>();
+                                            roundData.put("roundNumber", 1);
+                                            roundData.put("startTime", System.currentTimeMillis());
+                                            roundData.put("endTime", System.currentTimeMillis() + (lobby.getGameConfig().getTimeLimit() * 1000L));
+                                            roundData.put("words", words);
 
-                                        gameData.put("currentRound", roundData);
+                                            gameData.put("currentRound", roundData);
 
-                                        // Save game data
-                                        database.child("games").child(gameId).setValue(gameData)
-                                                .addOnCompleteListener(gameTask -> {
-                                                    if (gameTask.isSuccessful()) {
-                                                        // Update lobby
-                                                        lobbyUpdates.put("gameId", gameId);
-                                                        database.child("lobbies").child(lobbyId)
-                                                                .updateChildren(lobbyUpdates)
-                                                                .addOnCompleteListener(lobbyTask -> {
-                                                                    if (lobbyTask.isSuccessful()) {
-                                                                        callback.onSuccess(gameId);
-                                                                    } else {
-                                                                        callback.onFailure("Failed to update lobby");
-                                                                    }
-                                                                });
-                                                    } else {
-                                                        callback.onFailure("Failed to create game");
-                                                    }
-                                                });
+                                            // Save game data
+                                            database.child("games").child(gameId).setValue(gameData)
+                                                    .addOnCompleteListener(gameTask -> {
+                                                        if (gameTask.isSuccessful()) {
+                                                            // Update lobby
+                                                            lobbyUpdates.put("gameId", gameId);
+                                                            database.child("lobbies").child(lobbyId)
+                                                                    .updateChildren(lobbyUpdates)
+                                                                    .addOnCompleteListener(lobbyTask -> {
+                                                                        if (lobbyTask.isSuccessful()) {
+                                                                            callback.onSuccess(gameId);
+                                                                        } else {
+                                                                            callback.onFailure("Failed to update lobby");
+                                                                        }
+                                                                    });
+                                                        } else {
+                                                            callback.onFailure("Failed to create game");
+                                                        }
+                                                    });
+                                        }
                                     });
 
-                        } else {
-                            callback.onFailure("Cannot start game: not enough players");
+
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            System.out.println("Start game error: " + e.getMessage());
+                            callback.onFailure("Error starting game: "+ e.getMessage());
                         }
                     } else {
                         callback.onFailure("Lobby not found");
                     }
                 });
     }    // Helper method to get words for a category
-    private List<String> getWordsForCategory(String category, int count) {
+/*    private List<String> getWordsForCategory(String category, int count) {
         // This should be implemented in your WordSelection class
         // For now, adding a temporary implementation
         return com.example.telepathy.model.WordSelection.getRandomWords(category, count);
-    }
+    }*/
     // Game methods
     public void submitWord(String gameId, String playerId, String word, FirebaseCallback callback) {
         database.child("games").child(gameId).child("players").child(playerId).child("currentWord")
