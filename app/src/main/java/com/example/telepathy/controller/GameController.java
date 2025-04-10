@@ -66,17 +66,38 @@ public class GameController {
 
     private void processGameUpdate(Map<String, Object> gameData) {
         try {
+            // Instead of direct casting, access the map properties explicitly
             String status = (String) gameData.get("status");
-            Object roundObj = gameData.get("currentRound");
-            int currentRound = (roundObj instanceof Long) ? ((Long) roundObj).intValue() : 1;
 
-            Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
+            // Get current round, handle possible Long value from Firebase
+            int currentRound = 1;
+            Object roundObj = gameData.get("currentRound");
+            if (roundObj instanceof Long) {
+                currentRound = ((Long) roundObj).intValue();
+            } else if (roundObj instanceof Integer) {
+                currentRound = (Integer) roundObj;
+            }
+
+            // Get game config
             GameConfig config = new GameConfig();
+            Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
             if (configData != null) {
-                // Changed to requiredNonNull
-                config.setTimeLimit(((Long) Objects.requireNonNull(configData.get("timeLimit"))).intValue());
-                config.setMaxPlayers(((Long) Objects.requireNonNull(configData.get("maxPlayers"))).intValue());
-                config.setLivesPerPlayer(((Long) Objects.requireNonNull(configData.get("livesPerPlayer"))).intValue());
+                // Safely convert numeric values which might be Long from Firebase
+                Object timeLimitObj = configData.get("timeLimit");
+                if (timeLimitObj instanceof Long) {
+                    config.setTimeLimit(((Long) timeLimitObj).intValue());
+                }
+
+                Object maxPlayersObj = configData.get("maxPlayers");
+                if (maxPlayersObj instanceof Long) {
+                    config.setMaxPlayers(((Long) maxPlayersObj).intValue());
+                }
+
+                Object livesObj = configData.get("livesPerPlayer");
+                if (livesObj instanceof Long) {
+                    config.setLivesPerPlayer(((Long) livesObj).intValue());
+                }
+
                 config.setSelectedCategory((String) configData.get("selectedCategory"));
 
                 FirebaseDatabase.getInstance().getReference().child("category")
@@ -107,28 +128,55 @@ public class GameController {
                     Player player = new Player();
                     player.setId(entry.getKey());
                     player.setUsername((String) playerData.get("username"));
-                    // Changed to requireNonNull
-                    player.setScore(((Long) Objects.requireNonNull(playerData.get("score"))).intValue());
-                    player.setLives(((Long) Objects.requireNonNull(playerData.get("lives"))).intValue());
-                    player.setEliminated((Boolean) playerData.get("eliminated"));
+
+                    // Safe conversion of numeric types
+                    Object scoreObj = playerData.get("score");
+                    if (scoreObj instanceof Long) {
+                        player.setScore(((Long) scoreObj).intValue());
+                    }
+
+                    Object livesObj = playerData.get("lives");
+                    if (livesObj instanceof Long) {
+                        player.setLives(((Long) livesObj).intValue());
+                    }
+
+                    Object eliminatedObj = playerData.get("eliminated");
+                    if (eliminatedObj instanceof Boolean) {
+                        player.setEliminated((Boolean) eliminatedObj);
+                    }
+
                     player.setCurrentWord((String) playerData.get("currentWord"));
                     players.add(player);
                 }
             }
 
-            Map<String, Object> roundData = (Map<String, Object>) gameData.get("currentRound");
+            // Get current round data
             GameRound round = new GameRound();
+            Map<String, Object> roundData = (Map<String, Object>) gameData.get("currentRound");
             if (roundData != null) {
-                // changed to requireNonNull
-                round.setRoundNumber(((Long) Objects.requireNonNull(roundData.get("roundNumber"))).intValue());
-                round.setStartTime((Long) Objects.requireNonNull(roundData.get("startTime")));
-                round.setEndTime((Long) roundData.get("endTime"));
+                Object roundNumberObj = roundData.get("roundNumber");
+                if (roundNumberObj instanceof Long) {
+                    round.setRoundNumber(((Long) roundNumberObj).intValue());
+                }
+
+                Object startTimeObj = roundData.get("startTime");
+                if (startTimeObj instanceof Long) {
+                    round.setStartTime((Long) startTimeObj);
+                }
+
+                Object endTimeObj = roundData.get("endTime");
+                if (endTimeObj instanceof Long) {
+                    round.setEndTime((Long) endTimeObj);
+                }
 
                 List<String> words = new ArrayList<>();
-                List<Object> wordsData = (List<Object>) roundData.get("words");
-                if (wordsData != null) {
+                Object wordsObj = roundData.get("words");
+                if (wordsObj instanceof List) {
+                    List<Object> wordsData = (List<Object>) wordsObj;
                     for (Object word : wordsData) {
-                        words.add((String) word);
+                        if (word instanceof String) {
+                            words.add((String) word);
+                        }
                     }
                 }
                 round.setWords(words);
@@ -179,7 +227,6 @@ public class GameController {
             }
         }
     }
-
     public void submitWord(String word) {
         firebaseController.submitWord(gameId, currentPlayerId, word, new FirebaseController.FirebaseCallback() {
             @Override

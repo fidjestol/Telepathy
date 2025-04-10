@@ -3,6 +3,8 @@ package com.example.telepathy.controller;
 import androidx.annotation.NonNull;
 
 import com.example.telepathy.model.Database;
+import com.example.telepathy.model.User;
+import com.example.telepathy.model.WordSelection;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.DataSnapshot;
@@ -75,17 +77,16 @@ public class FirebaseController {
         auth.createUserWithEmailAndPassword(email, password)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
-                        FirebaseUser user = auth.getCurrentUser();
-                        if (user != null) {
+                        FirebaseUser firebaseUser = auth.getCurrentUser();
+                        if (firebaseUser != null) {
                             // Create player profile
-                            Player newPlayer = new Player(username);
-                            newPlayer.setId(user.getUid());
+                            User newUser = new User(firebaseUser.getUid(),username);
 
                             // Save to database
-                            database.child("users").child(user.getUid()).setValue(newPlayer)
+                            database.child("users").child(firebaseUser.getUid()).setValue(newUser)
                                     .addOnCompleteListener(saveTask -> {
                                         if (saveTask.isSuccessful()) {
-                                            callback.onSuccess(newPlayer);
+                                            callback.onSuccess(newUser);
                                         } else {
                                             callback.onFailure("Failed to save user data");
                                         }
@@ -102,13 +103,13 @@ public class FirebaseController {
         auth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful()) {
-                        FirebaseUser user = auth.getCurrentUser();
-                        if (user != null) {
-                            database.child("users").child(user.getUid()).get()
+                        FirebaseUser firebaseUser = auth.getCurrentUser();
+                        if (firebaseUser != null) {
+                            database.child("users").child(firebaseUser.getUid()).get()
                                     .addOnCompleteListener(dataTask -> {
                                         if (dataTask.isSuccessful() && dataTask.getResult() != null) {
-                                            Player player = dataTask.getResult().getValue(Player.class);
-                                            callback.onSuccess(player);
+                                            User user = dataTask.getResult().getValue(User.class);
+                                            callback.onSuccess(user);
                                         } else {
                                             callback.onFailure("Failed to get user data");
                                         }
@@ -253,11 +254,65 @@ public class FirebaseController {
         database.child("lobbies").child(lobbyId).get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult() != null) {
-                        Lobby lobby = task.getResult().getValue(Lobby.class);
-                        if (lobby != null && lobby.canStartGame()) {
+                        try {
+                            // Get lobby data
+                            DataSnapshot snapshot = task.getResult();
+                            Object lobbyDataObj = snapshot.getValue();
+
+                            // Add debug info
+                            System.out.println("LOBBY DATA TYPE: " + (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
+
+                            // Check data type before casting
+                            if (!(lobbyDataObj instanceof Map)) {
+                                callback.onFailure("Invalid lobby data format: " +
+                                        (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
+                                return;
+                            }
+
+                            Map<String, Object> lobbyData = (Map<String, Object>) lobbyDataObj;
+
+                            // Get players data - CHECK THE TYPE!
+                            Object playersObj = lobbyData.get("players");
+
+                            // Debug info
+                            System.out.println("PLAYERS DATA TYPE: " + (playersObj != null ? playersObj.getClass().getName() : "null"));
+
+                            // Handle players data based on its actual type
+                            Map<String, Object> playersMap;
+                            if (playersObj instanceof Map) {
+                                playersMap = (Map<String, Object>) playersObj;
+                            } else if (playersObj instanceof List) {
+                                // Convert List to Map if needed
+                                List<Object> playersList = (List<Object>) playersObj;
+                                playersMap = new HashMap<>();
+                                for (int i = 0; i < playersList.size(); i++) {
+                                    Object player = playersList.get(i);
+                                    if (player instanceof Map) {
+                                        Map<String, Object> playerMap = (Map<String, Object>) player;
+                                        String id = (String) playerMap.get("id");
+                                        if (id != null) {
+                                            playersMap.put(id, player);
+                                        } else {
+                                            playersMap.put("player" + i, player);
+                                        }
+                                    }
+                                }
+                            } else {
+                                callback.onFailure("Invalid players data format: " +
+                                        (playersObj != null ? playersObj.getClass().getName() : "null"));
+                                return;
+                            }
+
+                            if (playersMap.size() < 2) {
+                                callback.onFailure("Cannot start game: not enough players");
+                                return;
+                            }
+
+                            // Close the lobby
                             Map<String, Object> lobbyUpdates = new HashMap<>();
                             lobbyUpdates.put("open", false);
 
+                            // Create game ID
                             String gameId = database.child("games").push().getKey();
                             if (gameId == null) {
                                 callback.onFailure("Failed to generate game ID");
@@ -312,11 +367,12 @@ public class FirebaseController {
                         callback.onFailure("Lobby not found");
                     }
                 });
+    }    // Helper method to get words for a category
+    private List<String> getWordsForCategory(String category, int count) {
+        // This should be implemented in your WordSelection class
+        // For now, adding a temporary implementation
+        return com.example.telepathy.model.WordSelection.getRandomWords(category, count);
     }
-
-
-    // Helper method to get words for a category
-
     // Game methods
     public void submitWord(String gameId, String playerId, String word, FirebaseCallback callback) {
         database.child("games").child(gameId).child("players").child(playerId).child("currentWord")

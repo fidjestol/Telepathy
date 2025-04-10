@@ -1,7 +1,9 @@
 package com.example.telepathy.view.activities;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
@@ -89,11 +91,18 @@ public class LobbyActivity extends AppCompatActivity {
                 .child("lobbies").child(lobbyId);
 
         lobbyListener = new ValueEventListener() {
+            // In the lobbyListener's onDataChange method (LobbyActivity.java)
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 Lobby lobby = snapshot.getValue(Lobby.class);
                 if (lobby != null) {
                     updateUI(lobby);
+
+                    // Check if a game has been started
+                    if (lobby.getGameId() != null && !lobby.getGameId().isEmpty()) {
+                        // Game has been started, navigate to GameActivity
+                        navigateToGameActivity(lobby.getGameId());
+                    }
                 }
             }
 
@@ -146,6 +155,7 @@ public class LobbyActivity extends AppCompatActivity {
         }
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     private void updateUI(Lobby lobby) {
         lobbyNameTextView.setText(lobby.getName());
 
@@ -192,6 +202,8 @@ public class LobbyActivity extends AppCompatActivity {
             @Override
             public void onFailure(String error) {
                 progressBar.setVisibility(View.GONE);
+                Log.e("LobbyActivity", "Failed to start game: " + error);
+                System.out.println(error);
                 Toast.makeText(LobbyActivity.this, error, Toast.LENGTH_SHORT).show();
             }
         });

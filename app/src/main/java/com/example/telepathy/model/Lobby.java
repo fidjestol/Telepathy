@@ -118,6 +118,6 @@ public class Lobby {
     }
 
     public boolean canStartGame() {
-        return players.size() >= 2; // Need at least 2 players to start
+        return players.size() >= 1; // Need at least 2 players to start
     }
 }
