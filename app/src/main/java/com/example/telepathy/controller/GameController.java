@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 import com.example.telepathy.model.Game;
 import com.example.telepathy.model.GameConfig;
@@ -11,19 +12,20 @@ import com.example.telepathy.model.GameRound;
 import com.example.telepathy.model.Player;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class GameController {
     private Game currentGame;
-    private FirebaseController firebaseController;
-    private String gameId;
-    private String currentPlayerId;
-    private ValueEventListener gameListener;
-    private GameUpdateListener updateListener;
 
-    // Interface for game updates
+    // Added final as requested by code analysis, hope there are no consequences
+    private final FirebaseController firebaseController;
+    private final String gameId;
+    private final String currentPlayerId;
+    private ValueEventListener gameListener;
+    private final GameUpdateListener updateListener;
+
     public interface GameUpdateListener {
         void onGameStateChanged(Game game);
         void onRoundStart(GameRound round);
@@ -38,8 +40,6 @@ public class GameController {
         this.currentPlayerId = playerId;
         this.updateListener = listener;
         this.firebaseController = FirebaseController.getInstance();
-
-        // Initialize game state listener
         initGameListener();
     }
 
@@ -47,10 +47,8 @@ public class GameController {
         gameListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                // Convert Firebase data to Game object
                 Map<String, Object> gameData = (Map<String, Object>) snapshot.getValue();
                 if (gameData != null) {
-                    // Process game data
                     processGameUpdate(gameData);
                 }
             }
@@ -63,7 +61,6 @@ public class GameController {
             }
         };
 
-        // Start listening for game updates
         firebaseController.listenForGameUpdates(gameId, gameListener);
     }
 
@@ -102,9 +99,27 @@ public class GameController {
                 }
 
                 config.setSelectedCategory((String) configData.get("selectedCategory"));
+
+                FirebaseDatabase.getInstance().getReference().child("category")
+                        .addListenerForSingleValueEvent(new ValueEventListener() {
+                            @Override
+                            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                                List<String> categories = new ArrayList<>();
+                                for (DataSnapshot categorySnapshot : snapshot.getChildren()) {
+                                    categories.add(categorySnapshot.getKey());
+                                }
+                                config.setCategories(categories);
+                            }
+
+                            @Override
+                            public void onCancelled(@NonNull DatabaseError error) {
+                                if (updateListener != null) {
+                                    updateListener.onError("Failed to load categories: " + error.getMessage());
+                                }
+                            }
+                        });
             }
 
-            // Get players
             List<Player> players = new ArrayList<>();
             Map<String, Object> playersData = (Map<String, Object>) gameData.get("players");
             if (playersData != null) {
@@ -154,7 +169,6 @@ public class GameController {
                     round.setEndTime((Long) endTimeObj);
                 }
 
-                // Get words for this round
                 List<String> words = new ArrayList<>();
                 Object wordsObj = roundData.get("words");
                 if (wordsObj instanceof List) {
@@ -168,21 +182,44 @@ public class GameController {
                 round.setWords(words);
             }
 
-            // Update game state
             if (currentGame == null) {
                 currentGame = new Game(gameId, config, players);
             } else {
                 currentGame.setConfig(config);
                 currentGame.setPlayers(players);
             }
+
             currentGame.setCurrentRound(round);
             currentGame.setStatus(status);
 
-            // Notify listeners
-            if (updateListener != null) {
-                updateListener.onGameStateChanged(currentGame);
-
-                // Additional listener notifications...
+            if ("active".equals(status)) {
+                if (updateListener != null) {
+                    updateListener.onGameStateChanged(currentGame);
+                    if (currentGame.getCurrentRound().getRoundNumber() != currentRound) {
+                        updateListener.onRoundStart(currentGame.getCurrentRound());
+                    }
+                }
+            } else if ("roundEnd".equals(status)) {
+                if (updateListener != null) {
+                    updateListener.onRoundEnd(currentGame.getCurrentRound());
+                    for (Player player : players) {
+                        if (player.isEliminated()) {
+                            updateListener.onPlayerEliminated(player);
+                        }
+                    }
+                }
+            } else if ("gameEnd".equals(status)) {
+                if (updateListener != null) {
+                    Player winner = null;
+                    for (Player player : players) {
+                        if (!player.isEliminated()) {
+                            winner = player;
+                            break;
+                        }
+                    }
+                    updateListener.onGameEnd(winner);
+                }
+                firebaseController.removeGameListener(gameId, gameListener);
             }
         } catch (Exception e) {
             if (updateListener != null) {
@@ -193,9 +230,7 @@ public class GameController {
     public void submitWord(String word) {
         firebaseController.submitWord(gameId, currentPlayerId, word, new FirebaseController.FirebaseCallback() {
             @Override
-            public void onSuccess(Object result) {
-                // Word submitted successfully
-            }
+            public void onSuccess(Object result) {}
 
             @Override
             public void onFailure(String error) {
@@ -207,7 +242,6 @@ public class GameController {
     }
 
     public void validateWord(String word) {
-        // Simple word validation
         if (word == null || word.trim().isEmpty()) {
             if (updateListener != null) {
                 updateListener.onError("Word cannot be empty");
@@ -215,7 +249,6 @@ public class GameController {
             return;
         }
 
-        // Check if word is in the current round's word list
         if (currentGame != null && currentGame.getCurrentRound() != null) {
             List<String> validWords = currentGame.getCurrentRound().getWords();
             if (validWords != null && !validWords.contains(word.trim().toLowerCase())) {
@@ -226,7 +259,6 @@ public class GameController {
             }
         }
 
-        // If validation passes, submit the word
         submitWord(word.trim().toLowerCase());
     }
 

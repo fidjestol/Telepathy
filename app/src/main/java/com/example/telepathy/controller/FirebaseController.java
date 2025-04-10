@@ -2,6 +2,7 @@ package com.example.telepathy.controller;
 
 import androidx.annotation.NonNull;
 
+import com.example.telepathy.model.Database;
 import com.example.telepathy.model.User;
 import com.example.telepathy.model.WordSelection;
 import com.google.firebase.auth.FirebaseAuth;
@@ -19,11 +20,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 public class FirebaseController {
     private static FirebaseController instance;
-    private FirebaseAuth auth;
-    private DatabaseReference database;
+    private final FirebaseAuth auth;
+    private final DatabaseReference database;
 
     /**
      * Get a specific lobby by its ID
@@ -125,18 +127,37 @@ public class FirebaseController {
     }
 
     // Lobby methods
-    public void createLobby(String lobbyName, Player host, FirebaseCallback callback) {
-        Lobby lobby = new Lobby(lobbyName, host);
+    public void createLobby(String lobbyName, Player host, @NonNull String requestedCategory, FirebaseCallback callback) {
+        GameConfig config = new GameConfig();
 
-        database.child("lobbies").child(lobby.getId()).setValue(lobby)
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        callback.onSuccess(lobby);
-                    } else {
-                        callback.onFailure("Failed to create lobby");
-                    }
-                });
+        config.loadCategoriesFromDatabase(Database.getInstance(), () -> {
+            List<String> categories = config.getCategories();
+
+            // Check if the requested category is valid
+            if (requestedCategory != null && categories.contains(requestedCategory)) {
+                config.setSelectedCategory(requestedCategory);
+            } else if (!categories.isEmpty()) {
+                // Fallback: pick a random category
+                int randomIndex = new Random().nextInt(categories.size());
+                config.setSelectedCategory(categories.get(randomIndex));
+            }
+
+            // Create and save the lobby
+            Lobby lobby = new Lobby(lobbyName, host);
+            lobby.setGameConfig(config);
+
+            database.child("lobbies").child(lobby.getId()).setValue(lobby)
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful()) {
+                            callback.onSuccess(lobby);
+                        } else {
+                            callback.onFailure("Failed to create lobby");
+                        }
+                    });
+        });
     }
+
+
 
     public void getLobbyList(FirebaseCallback callback) {
         database.child("lobbies").addListenerForSingleValueEvent(new ValueEventListener() {
@@ -236,19 +257,19 @@ public class FirebaseController {
                         try {
                             // Get lobby data
                             DataSnapshot snapshot = task.getResult();
-                            Object lobbyDataObj = snapshot.getValue();
+                            Lobby lobby = snapshot.getValue(Lobby.class);
 
                             // Add debug info
-                            System.out.println("LOBBY DATA TYPE: " + (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
+                            System.out.println("LOBBY DATA TYPE: " + (lobby != null ? lobby.getClass().getName() : "null"));
 
                             // Check data type before casting
-                            if (!(lobbyDataObj instanceof Map)) {
+                            if (!(lobby instanceof Map)) {
                                 callback.onFailure("Invalid lobby data format: " +
-                                        (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
+                                        (lobby != null ? lobby.getClass().getName() : "null"));
                                 return;
                             }
 
-                            Map<String, Object> lobbyData = (Map<String, Object>) lobbyDataObj;
+                            Map<String, Object> lobbyData = (Map<String, Object>) lobby;
 
                             // Get players data - CHECK THE TYPE!
                             Object playersObj = lobbyData.get("players");
@@ -298,94 +319,66 @@ public class FirebaseController {
                                 return;
                             }
 
-                            // Get config data - CHECK THE TYPE!
-                            Object configObj = lobbyData.get("gameConfig");
-                            Map<String, Object> configData;
+                            // 👇 Use dynamic word loading from Firebase
+                            WordSelection.getRandomWords(
+                                    lobby.getGameConfig().getSelectedCategory(), 20, new WordSelection.WordCallback() {
+                                        @Override
+                                        public void onWordsSelected(List<String> words) {
 
-                            if (configObj instanceof Map) {
-                                configData = (Map<String, Object>) configObj;
-                            } else {
-                                // Use default config
-                                configData = new HashMap<>();
-                                configData.put("timeLimit", 30);
-                                configData.put("maxPlayers", 8);
-                                configData.put("livesPerPlayer", 3);
-                                configData.put("selectedCategory", "Animals");
-                            }
+                                            // Game metadata
+                                            Map<String, Object> gameData = new HashMap<>();
+                                            gameData.put("lobbyId", lobbyId);
+                                            gameData.put("players", lobby.getPlayers());
+                                            gameData.put("config", lobby.getGameConfig());
+                                            gameData.put("status", "active");
 
-                            // Create game data
-                            Map<String, Object> gameData = new HashMap<>();
-                            gameData.put("lobbyId", lobbyId);
-                            gameData.put("players", playersMap);
-                            gameData.put("config", configData);
-                            gameData.put("status", "active");
+                                            // Round metadata
+                                            Map<String, Object> roundData = new HashMap<>();
+                                            roundData.put("roundNumber", 1);
+                                            roundData.put("startTime", System.currentTimeMillis());
+                                            roundData.put("endTime", System.currentTimeMillis() + (lobby.getGameConfig().getTimeLimit() * 1000L));
+                                            roundData.put("words", words);
 
-                            // Create first round
-                            Map<String, Object> roundData = new HashMap<>();
-                            roundData.put("roundNumber", 1);
-                            roundData.put("startTime", System.currentTimeMillis());
+                                            gameData.put("currentRound", roundData);
 
-                            // Get time limit
-                            long timeLimit = 30;
-                            Object timeLimitObj = configData.get("timeLimit");
-                            if (timeLimitObj instanceof Number) {
-                                timeLimit = ((Number) timeLimitObj).longValue();
-                            }
-
-                            roundData.put("endTime", System.currentTimeMillis() + (timeLimit * 1000));
-
-                            // Get category for word selection
-                            String category = "Animals";
-                            Object categoryObj = configData.get("selectedCategory");
-                            if (categoryObj instanceof String) {
-                                category = (String) categoryObj;
-                            }
-
-                            // Get words for the round
-                            List<String> words = WordSelection.getRandomWords(category, 20);
-                            roundData.put("words", words);
-
-                            gameData.put("currentRound", roundData);
-
-                            // Save game data
-                            database.child("games").child(gameId).setValue(gameData)
-                                    .addOnCompleteListener(gameTask -> {
-                                        if (gameTask.isSuccessful()) {
-                                            // Update lobby with game reference
-                                            lobbyUpdates.put("gameId", gameId);
-
-                                            database.child("lobbies").child(lobbyId)
-                                                    .updateChildren(lobbyUpdates)
-                                                    .addOnCompleteListener(lobbyTask -> {
-                                                        if (lobbyTask.isSuccessful()) {
-                                                            callback.onSuccess(gameId);
+                                            // Save game data
+                                            database.child("games").child(gameId).setValue(gameData)
+                                                    .addOnCompleteListener(gameTask -> {
+                                                        if (gameTask.isSuccessful()) {
+                                                            // Update lobby
+                                                            lobbyUpdates.put("gameId", gameId);
+                                                            database.child("lobbies").child(lobbyId)
+                                                                    .updateChildren(lobbyUpdates)
+                                                                    .addOnCompleteListener(lobbyTask -> {
+                                                                        if (lobbyTask.isSuccessful()) {
+                                                                            callback.onSuccess(gameId);
+                                                                        } else {
+                                                                            callback.onFailure("Failed to update lobby");
+                                                                        }
+                                                                    });
                                                         } else {
-                                                            callback.onFailure("Failed to update lobby: " +
-                                                                    (lobbyTask.getException() != null ?
-                                                                            lobbyTask.getException().getMessage() : "unknown error"));
+                                                            callback.onFailure("Failed to create game");
                                                         }
                                                     });
-                                        } else {
-                                            callback.onFailure("Failed to create game: " +
-                                                    (gameTask.getException() != null ?
-                                                            gameTask.getException().getMessage() : "unknown error"));
                                         }
                                     });
+
+
                         } catch (Exception e) {
                             e.printStackTrace();
-                            System.out.println("START GAME ERROR: " + e.getMessage());
-                            callback.onFailure("Error starting game: " + e.getMessage());
+                            System.out.println("Start game error: " + e.getMessage());
+                            callback.onFailure("Error starting game: "+ e.getMessage());
                         }
                     } else {
                         callback.onFailure("Lobby not found");
                     }
                 });
     }    // Helper method to get words for a category
-    private List<String> getWordsForCategory(String category, int count) {
+/*    private List<String> getWordsForCategory(String category, int count) {
         // This should be implemented in your WordSelection class
         // For now, adding a temporary implementation
         return com.example.telepathy.model.WordSelection.getRandomWords(category, count);
-    }
+    }*/
     // Game methods
     public void submitWord(String gameId, String playerId, String word, FirebaseCallback callback) {
         database.child("games").child(gameId).child("players").child(playerId).child("currentWord")
