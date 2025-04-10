@@ -79,6 +79,9 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         playerId = getIntent().getStringExtra("playerId");
         isHost = getIntent().getBooleanExtra("isHost", false); // Get host status
 
+        // Initialize Firebase controller
+        firebaseController = FirebaseController.getInstance();
+
         // Initialize UI components
         lobbyNameTextView = findViewById(R.id.lobbyNameTextView);
         timerTextView = findViewById(R.id.timerTextView);
@@ -118,10 +121,9 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             gameControlsLayout.setVisibility(View.GONE);
             waitingLayout.setVisibility(View.VISIBLE);
 
-            // TODO: Add logic to wait for game to start
-            // For now, let's add a start game button for the host
+            // Add a start game button for the host
             Button startGameButton = findViewById(R.id.startGameButton);
-            startGameButton.setVisibility(View.VISIBLE);
+            startGameButton.setVisibility(isHost ? View.VISIBLE : View.GONE);
             startGameButton.setOnClickListener(v -> startGame());
         } else {
             // Invalid state
@@ -134,13 +136,24 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         progressBar.setVisibility(View.VISIBLE);
 
         // Call Firebase to start the game
-        // This is just a placeholder - implement with your FirebaseController
-        gameController = new GameController(lobbyId, playerId, this);
+        firebaseController.startGame(lobbyId, new FirebaseController.FirebaseCallback() {
+            @Override
+            public void onSuccess(Object result) {
+                gameId = (String) result;
+                gameController = new GameController(gameId, playerId, GameActivity.this);
 
-        // For now, hide the waiting layout
-        waitingLayout.setVisibility(View.GONE);
-        gameControlsLayout.setVisibility(View.VISIBLE);
-        progressBar.setVisibility(View.GONE);
+                // Hide the waiting layout
+                waitingLayout.setVisibility(View.GONE);
+                gameControlsLayout.setVisibility(View.VISIBLE);
+                progressBar.setVisibility(View.GONE);
+            }
+
+            @Override
+            public void onFailure(String error) {
+                progressBar.setVisibility(View.GONE);
+                Toast.makeText(GameActivity.this, "Failed to start game: " + error, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void submitWord() {
@@ -245,7 +258,6 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             }
         });
     }
-
     @SuppressLint("NotifyDataSetChanged")
     @Override
     public void onRoundStart(GameRound round) {
@@ -261,6 +273,10 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             playerListAdapter.setShowSubmissions(false);
             playerListAdapter.notifyDataSetChanged();
 
+            // Make sure words recycler view is visible and history is hidden during active round
+            wordsRecyclerView.setVisibility(View.VISIBLE);
+            wordHistoryRecyclerView.setVisibility(View.GONE);
+
             // Start timer
             long duration = (round.getEndTime() - round.getStartTime());
             startTimer(duration);
@@ -275,7 +291,6 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             Toast.makeText(this, "Round " + round.getRoundNumber() + " started", Toast.LENGTH_SHORT).show();
         });
     }
-
     @Override
     public void onRoundEnd(GameRound round) {
         runOnUiThread(() -> {
@@ -290,42 +305,45 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             wordInputEditText.setEnabled(false);
             submitButton.setEnabled(false);
 
-            // Show player submissions in the UI (not in a dialog)
+            // Show player submissions in the UI
             updatePlayerSubmissions();
 
             // Display round end message
             Toast.makeText(this, "Round ended! Next round starting soon...", Toast.LENGTH_SHORT).show();
 
-            // If this is the host, schedule the next round after 5 seconds
-            if (isHost) {
-                new Handler().postDelayed(() -> {
-                    // Check if game should continue
-                    int activePlayers = 0;
-                    for (Player player : players) {
-                        if (!player.isEliminated()) {
-                            activePlayers++;
-                        }
-                    }
+            // Add logging
+            Log.d("Telepathy", "Round ended. gameId=" + gameId);
+            System.out.println("TELEPATHY_DEBUG: Round ended. gameId=" + gameId);
 
-                    if (activePlayers >= 2) {
-                        // Start next round
-                        firebaseController.startNextRound(gameId, new FirebaseController.FirebaseCallback() {
-                            @Override
-                            public void onSuccess(Object result) {
-                                // Next round will be started via Firebase listener
-                            }
+            // Start countdown for next round (visible to all players)
+            startNextRoundCountdown();
 
-                            @Override
-                            public void onFailure(String error) {
-                                Toast.makeText(GameActivity.this, "Error starting next round: " + error,
-                                        Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                    }
-                    // If active players < 2, the game will end automatically via Firebase
-                }, 5000); // 5 second delay before next round
-            }
+            // No need to check for host - only the host should trigger the next round from Firebase
+            // The Firebase listener in all clients will receive the update and start the round
         });
+    }
+
+    // New method to display countdown for next round
+    private void startNextRoundCountdown() {
+        // Show the timer area for countdown
+        timerTextView.setVisibility(View.VISIBLE);
+
+        // Change the color to indicate it's a different countdown
+        timerTextView.setBackgroundResource(R.drawable.timer_background);
+
+        // Start a 5-second countdown
+        new CountDownTimer(5000, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                int seconds = (int) (millisUntilFinished / 1000);
+                timerTextView.setText("Next round in: " + seconds);
+            }
+
+            @Override
+            public void onFinish() {
+                timerTextView.setText("Starting...");
+            }
+        }.start();
     }
 
     private void updatePlayerSubmissions() {
@@ -336,12 +354,14 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             if (word != null && !word.isEmpty()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     wordCounts.put(word, wordCounts.getOrDefault(word, 0) + 1);
+                } else {
+                    Integer count = wordCounts.get(word);
+                    wordCounts.put(word, (count == null) ? 1 : count + 1);
                 }
             }
         }
 
         // Update the player adapter to show submissions
-        // This requires modifying your PlayerListAdapter to display the current word
         playerListAdapter.setShowSubmissions(true);
         playerListAdapter.setDuplicateWords(wordCounts);
         playerListAdapter.notifyDataSetChanged();
@@ -349,16 +369,39 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         // Add submitted words to the word history
         for (Player player : players) {
             String word = player.getCurrentWord();
-            if (word != null && !word.isEmpty() && !usedWords.contains(word)) {
-                usedWords.add(word);
+            if (word != null && !word.isEmpty()) {
+                // Check if this word is already in the used words list
+                boolean alreadyAdded = false;
+                for (String usedWord : usedWords) {
+                    if (usedWord.equalsIgnoreCase(word)) {
+                        alreadyAdded = true;
+                        break;
+                    }
+                }
+
+                // Only add unique words to the list
+                if (!alreadyAdded) {
+                    // Add information if this is a duplicate word
+                    boolean isDuplicate = wordCounts.getOrDefault(word, 0) > 1;
+                    String displayWord = word;
+                    if (isDuplicate) {
+                        displayWord = "⚠️ " + word + " (" + wordCounts.get(word) + " players)";
+                    } else {
+                        displayWord = "✓ " + word;
+                    }
+                    usedWords.add(displayWord);
+                }
             }
         }
 
-        // Update the words list
+        // Switch views to show the history
+        wordsRecyclerView.setVisibility(View.GONE);
+        wordHistoryRecyclerView.setVisibility(View.VISIBLE);
+
+        // Update adapters
         wordListAdapter.notifyDataSetChanged();
         wordHistoryAdapter.notifyDataSetChanged();
     }
-
     @SuppressLint("NotifyDataSetChanged")
     @Override
     public void onPlayerEliminated(Player player) {
@@ -457,6 +500,4 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             gameController.cleanup();
         }
     }
-
-
 }

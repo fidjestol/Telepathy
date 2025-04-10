@@ -19,17 +19,70 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 public class FirebaseController {
     private static FirebaseController instance;
     private FirebaseAuth auth;
     private DatabaseReference database;
 
-    /**
-     * Get a specific lobby by its ID
-     * @param lobbyId The ID of the lobby to retrieve
-     * @param callback Callback to handle the result
-     */
+    // Interface for callbacks
+    public interface FirebaseCallback {
+        void onSuccess(Object result);
+        void onFailure(String error);
+    }
+
+    private FirebaseController() {
+        auth = FirebaseAuth.getInstance();
+        database = FirebaseDatabase.getInstance().getReference();
+    }
+
+    public static synchronized FirebaseController getInstance() {
+        if (instance == null) {
+            instance = new FirebaseController();
+        }
+        return instance;
+    }
+
+    // Helper method to update player data
+    public void updatePlayerData(String gameId, String playerId, Map<String, Object> updates, FirebaseCallback callback) {
+        if (gameId == null || gameId.isEmpty() || playerId == null || playerId.isEmpty() || updates == null || updates.isEmpty()) {
+            callback.onFailure("Invalid parameters for player update");
+            return;
+        }
+
+        database.child("games").child(gameId).child("players").child(playerId)
+                .updateChildren(updates)
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        callback.onSuccess(null);
+                    } else {
+                        callback.onFailure(task.getException() != null ?
+                                task.getException().getMessage() : "Failed to update player data");
+                    }
+                });
+    }
+
+    // Helper method to update game data
+    public void updateGameData(String gameId, Map<String, Object> updates, FirebaseCallback callback) {
+        if (gameId == null || gameId.isEmpty() || updates == null || updates.isEmpty()) {
+            callback.onFailure("Invalid parameters for game update");
+            return;
+        }
+
+        database.child("games").child(gameId)
+                .updateChildren(updates)
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        callback.onSuccess(null);
+                    } else {
+                        callback.onFailure(task.getException() != null ?
+                                task.getException().getMessage() : "Failed to update game data");
+                    }
+                });
+    }
+
+    // Get a specific lobby by its ID
     public void getLobbyById(String lobbyId, FirebaseCallback callback) {
         if (lobbyId == null || lobbyId.isEmpty()) {
             callback.onFailure("Invalid lobby ID");
@@ -50,24 +103,6 @@ public class FirebaseController {
                                 task.getException().getMessage() : "Failed to retrieve lobby");
                     }
                 });
-    }
-
-    // Interface for callbacks
-    public interface FirebaseCallback {
-        void onSuccess(Object result);
-        void onFailure(String error);
-    }
-
-    private FirebaseController() {
-        auth = FirebaseAuth.getInstance();
-        database = FirebaseDatabase.getInstance().getReference();
-    }
-
-    public static synchronized FirebaseController getInstance() {
-        if (instance == null) {
-            instance = new FirebaseController();
-        }
-        return instance;
     }
 
     // Authentication methods
@@ -380,23 +415,95 @@ public class FirebaseController {
                         callback.onFailure("Lobby not found");
                     }
                 });
-    }    // Helper method to get words for a category
+    }
+
+    // Helper method to get words for a category
     private List<String> getWordsForCategory(String category, int count) {
-        // This should be implemented in your WordSelection class
-        // For now, adding a temporary implementation
         return com.example.telepathy.model.WordSelection.getRandomWords(category, count);
     }
 
+    // Replace the endCurrentRound method in FirebaseController.java to automatically schedule the next round
+
     public void endCurrentRound(String gameId, FirebaseCallback callback) {
-        database.child("games").child(gameId).child("status").setValue("roundEnd")
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        callback.onSuccess(null);
+        System.out.println("TELEPATHY: Ending current round for game " + gameId);
+
+        database.child("games").child(gameId).get()
+                .addOnCompleteListener(getTask -> {
+                    if (getTask.isSuccessful() && getTask.getResult() != null) {
+                        try {
+                            DataSnapshot snapshot = getTask.getResult();
+                            Map<String, Object> gameData = (Map<String, Object>) snapshot.getValue();
+
+                            if (gameData == null) {
+                                callback.onFailure("Game data is null");
+                                return;
+                            }
+
+                            // Set the round end status
+                            database.child("games").child(gameId).child("status").setValue("roundEnd")
+                                    .addOnCompleteListener(task -> {
+                                        if (task.isSuccessful()) {
+                                            System.out.println("TELEPATHY: Round ended successfully, scheduling next round");
+
+                                            // Check how many active players remain
+                                            Map<String, Object> playersData = (Map<String, Object>) gameData.get("players");
+                                            int activePlayers = 0;
+
+                                            if (playersData != null) {
+                                                for (Map.Entry<String, Object> entry : playersData.entrySet()) {
+                                                    Map<String, Object> playerData = (Map<String, Object>) entry.getValue();
+                                                    Object eliminatedObj = playerData.get("eliminated");
+
+                                                    if (!(eliminatedObj instanceof Boolean && (Boolean) eliminatedObj)) {
+                                                        activePlayers++;
+                                                    }
+                                                }
+                                            }
+
+                                            System.out.println("TELEPATHY: Active players remaining: " + activePlayers);
+
+                                            // If more than one player remains, schedule next round to start automatically
+                                            if (activePlayers > 1) {
+                                                // Create a field that specifies when the next round should start
+                                                // This allows all clients to show a countdown but only one actually starts the round
+                                                Map<String, Object> updates = new HashMap<>();
+                                                long nextRoundStartTime = System.currentTimeMillis() + 5000; // 5 seconds from now
+                                                updates.put("nextRoundStartTime", nextRoundStartTime);
+
+                                                // Add a field to prevent duplicate round starts
+                                                String roundStarterId = UUID.randomUUID().toString();
+                                                updates.put("roundStarterId", roundStarterId);
+
+                                                database.child("games").child(gameId).updateChildren(updates)
+                                                        .addOnCompleteListener(updateTask -> {
+                                                            callback.onSuccess(roundStarterId);
+                                                        });
+                                            } else if (activePlayers == 1) {
+                                                // Only one player left, end the game
+                                                System.out.println("TELEPATHY: Only one player left, ending game");
+                                                database.child("games").child(gameId).child("status").setValue("gameEnd");
+                                                callback.onSuccess(null);
+                                            } else {
+                                                // No players left (should not happen normally)
+                                                System.out.println("TELEPATHY: No active players left, ending game");
+                                                database.child("games").child(gameId).child("status").setValue("gameEnd");
+                                                callback.onSuccess(null);
+                                            }
+                                        } else {
+                                            callback.onFailure("Failed to end round");
+                                        }
+                                    });
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            System.out.println("TELEPATHY: Error ending round: " + e.getMessage());
+                            callback.onFailure("Error ending round: " + e.getMessage());
+                        }
                     } else {
-                        callback.onFailure("Failed to end round");
+                        callback.onFailure("Failed to get game data");
                     }
                 });
     }
+
     // Game methods
     public void submitWord(String gameId, String playerId, String word, FirebaseCallback callback) {
         database.child("games").child(gameId).child("players").child(playerId).child("currentWord")
@@ -414,89 +521,135 @@ public class FirebaseController {
         database.child("games").child(gameId).addValueEventListener(listener);
     }
 
+// Fix for startNextRound method in FirebaseController.java to prevent round skipping and word list issues
+
     public void startNextRound(String gameId, FirebaseCallback callback) {
+        // Debug logging
+        System.out.println("TELEPATHY: Starting next round for game " + gameId);
+
         // First get the current game data
         database.child("games").child(gameId).get()
                 .addOnCompleteListener(task -> {
                     if (task.isSuccessful() && task.getResult() != null) {
                         try {
-                            Map<String, Object> gameData = (Map<String, Object>) task.getResult().getValue();
-                            if (gameData != null) {
-                                // Extract current round number
-                                Map<String, Object> currentRoundData = (Map<String, Object>) gameData.get("currentRound");
-                                int currentRoundNumber = 1;
+                            DataSnapshot snapshot = task.getResult();
 
-                                if (currentRoundData != null && currentRoundData.containsKey("roundNumber")) {
-                                    Object roundNumberObj = currentRoundData.get("roundNumber");
-                                    if (roundNumberObj instanceof Long) {
-                                        currentRoundNumber = ((Long) roundNumberObj).intValue();
-                                    }
-                                }
-
-                                // Get game config for category
-                                Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
-                                String category = "Animals"; // Default
-
-                                if (configData != null && configData.containsKey("selectedCategory")) {
-                                    category = (String) configData.get("selectedCategory");
-                                }
-
-                                // Create new round data
-                                Map<String, Object> newRoundData = new HashMap<>();
-                                newRoundData.put("roundNumber", currentRoundNumber + 1);
-                                newRoundData.put("startTime", System.currentTimeMillis());
-
-                                // Get time limit from config or use default
-                                long timeLimit = 30;
-                                if (configData != null && configData.containsKey("timeLimit")) {
-                                    Object timeLimitObj = configData.get("timeLimit");
-                                    if (timeLimitObj instanceof Long) {
-                                        timeLimit = (Long) timeLimitObj;
-                                    }
-                                }
-
-                                newRoundData.put("endTime", System.currentTimeMillis() + (timeLimit * 1000));
-
-                                // Get new words for this round
-                                List<String> words = WordSelection.getRandomWords(category, 20);
-                                newRoundData.put("words", words);
-
-                                // Clear player word submissions from previous round
-                                Map<String, Object> playersData = (Map<String, Object>) gameData.get("players");
-                                if (playersData != null) {
-                                    for (String playerId : playersData.keySet()) {
-                                        database.child("games").child(gameId).child("players")
-                                                .child(playerId).child("currentWord").setValue("");
-                                    }
-                                }
-
-                                // Update game in database
-                                Map<String, Object> updates = new HashMap<>();
-                                updates.put("currentRound", newRoundData);
-                                updates.put("status", "active");
-
-                                database.child("games").child(gameId).updateChildren(updates)
-                                        .addOnCompleteListener(updateTask -> {
-                                            if (updateTask.isSuccessful()) {
-                                                callback.onSuccess(null);
-                                            } else {
-                                                callback.onFailure("Failed to start next round: " +
-                                                        (updateTask.getException() != null ?
-                                                                updateTask.getException().getMessage() : "unknown error"));
-                                            }
-                                        });
-                            } else {
-                                callback.onFailure("Game data not found");
+                            Map<String, Object> gameData = (Map<String, Object>) snapshot.getValue();
+                            if (gameData == null) {
+                                callback.onFailure("Game data is null");
+                                return;
                             }
+
+                            // Get current status - only proceed if status is roundEnd
+                            String status = (String) gameData.get("status");
+                            if (!"roundEnd".equals(status)) {
+                                System.out.println("TELEPATHY: Cannot start next round - game status is " + status + " instead of roundEnd");
+                                callback.onFailure("Game is not in roundEnd status");
+                                return;
+                            }
+
+                            // Extract current round number - important to get the EXACT current round
+                            Map<String, Object> currentRoundData = (Map<String, Object>) gameData.get("currentRound");
+                            int currentRoundNumber = 1;
+
+                            if (currentRoundData != null && currentRoundData.containsKey("roundNumber")) {
+                                Object roundNumberObj = currentRoundData.get("roundNumber");
+                                if (roundNumberObj instanceof Long) {
+                                    currentRoundNumber = ((Long) roundNumberObj).intValue();
+                                } else if (roundNumberObj instanceof Integer) {
+                                    currentRoundNumber = (Integer) roundNumberObj;
+                                } else if (roundNumberObj instanceof Double) {
+                                    currentRoundNumber = ((Double) roundNumberObj).intValue();
+                                }
+                            }
+
+                            System.out.println("TELEPATHY: Current round number: " + currentRoundNumber);
+
+                            // IMPORTANT: Create BRAND NEW round data with correct next round number
+                            int nextRoundNumber = currentRoundNumber + 1;
+                            System.out.println("TELEPATHY: Next round number will be: " + nextRoundNumber);
+
+                            // Get game config for category
+                            Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
+                            String category = "Animals"; // Default
+
+                            if (configData != null && configData.containsKey("selectedCategory")) {
+                                category = (String) configData.get("selectedCategory");
+                            }
+
+                            // Create new round data
+                            Map<String, Object> newRoundData = new HashMap<>();
+                            newRoundData.put("roundNumber", nextRoundNumber);
+                            newRoundData.put("startTime", System.currentTimeMillis());
+
+                            // Get time limit from config or use default
+                            long timeLimit = 30;
+                            if (configData != null && configData.containsKey("timeLimit")) {
+                                Object timeLimitObj = configData.get("timeLimit");
+                                if (timeLimitObj instanceof Long) {
+                                    timeLimit = (Long) timeLimitObj;
+                                } else if (timeLimitObj instanceof Integer) {
+                                    timeLimit = ((Integer) timeLimitObj).longValue();
+                                } else if (timeLimitObj instanceof Double) {
+                                    timeLimit = ((Double) timeLimitObj).longValue();
+                                }
+                            }
+
+                            newRoundData.put("endTime", System.currentTimeMillis() + (timeLimit * 1000));
+
+                            // Get new words for this round - IMPORTANT: Generate brand new list
+                            List<String> words = WordSelection.getRandomWords(category, 20);
+                            newRoundData.put("words", words);
+
+                            System.out.println("TELEPATHY: Generated " + words.size() + " new words for round " + nextRoundNumber);
+
+                            // Create combined update map
+                            Map<String, Object> updates = new HashMap<>();
+
+                            // Clear any round starter data
+                            updates.put("nextRoundStartTime", null);
+                            updates.put("roundStarterId", null);
+
+                            // Clear all player word submissions
+                            Map<String, Object> playersData = (Map<String, Object>) gameData.get("players");
+                            if (playersData != null) {
+                                for (String playerId : playersData.keySet()) {
+                                    updates.put("players/" + playerId + "/currentWord", "");
+                                }
+                            }
+
+                            // Add new round data and update status
+                            updates.put("currentRound", newRoundData);
+                            updates.put("status", "active");
+
+                            // Use a single atomic update operation
+                            database.child("games").child(gameId).updateChildren(updates)
+                                    .addOnCompleteListener(updateTask -> {
+                                        if (updateTask.isSuccessful()) {
+                                            System.out.println("TELEPATHY: Successfully started round " + nextRoundNumber);
+                                            callback.onSuccess(null);
+                                        } else {
+                                            System.out.println("TELEPATHY: Failed to start round: " +
+                                                    (updateTask.getException() != null ?
+                                                            updateTask.getException().getMessage() : "unknown error"));
+                                            callback.onFailure("Failed to start next round: " +
+                                                    (updateTask.getException() != null ?
+                                                            updateTask.getException().getMessage() : "unknown error"));
+                                        }
+                                    });
+
                         } catch (Exception e) {
+                            e.printStackTrace();
+                            System.out.println("TELEPATHY: Error preparing next round: " + e.getMessage());
                             callback.onFailure("Error preparing next round: " + e.getMessage());
                         }
                     } else {
+                        System.out.println("TELEPATHY: Failed to get game data: " +
+                                (task.getException() != null ? task.getException().getMessage() : "unknown error"));
                         callback.onFailure("Failed to get game data");
                     }
                 });
     }
-
     public void removeGameListener(String gameId, ValueEventListener listener) {
         database.child("games").child(gameId).removeEventListener(listener);
     }
