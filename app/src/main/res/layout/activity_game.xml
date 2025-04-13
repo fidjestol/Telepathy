@@ -7,6 +7,14 @@
     android:padding="16dp"
     tools:context=".view.activities.GameActivity">
 
+    <!-- Place all elements under the toolbar -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/toolbarGuideline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_begin="?attr/actionBarSize" />
+
     <!-- Game info header -->
     <TextView
         android:id="@+id/lobbyNameTextView"
@@ -15,7 +23,7 @@
         android:textSize="18sp"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/toolbarGuideline"
         tools:text="Awesome Game" />
 
     <TextView
@@ -25,7 +33,7 @@
         android:layout_marginTop="8dp"
         android:textSize="16sp"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/lobbyNameTextView"
+        app:layout_constraintTop_toBottomOf="@id/lobbyNameTextView"
         tools:text="Round: 1" />
 
     <TextView
@@ -38,7 +46,7 @@
         android:textSize="24sp"
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/toolbarGuideline"
         tools:text="30" />
 
     <TextView
@@ -48,7 +56,7 @@
         android:layout_marginTop="8dp"
         android:textSize="16sp"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/timerTextView"
+        app:layout_constraintTop_toBottomOf="@id/timerTextView"
         tools:text="Lives: 3" />
 
     <!-- Player list -->
@@ -182,7 +190,6 @@
             android:layout_marginTop="16dp"
             android:text="@string/start_game"
             android:visibility="gone" />
-
     </LinearLayout>
 
     <!-- Game Controls Layout -->
@@ -193,11 +200,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/lobbyNameTextView">
-
-        <!-- Game UI is contained within this layout -->
-
-    </FrameLayout>
+        app:layout_constraintTop_toBottomOf="@+id/lobbyNameTextView" />
 
     <ProgressBar
         android:id="@+id/progressBar"
@@ -208,6 +211,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/toolbarGuideline" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
