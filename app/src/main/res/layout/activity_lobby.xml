@@ -7,6 +7,14 @@
     android:padding="16dp"
     tools:context=".view.activities.LobbyActivity">
 
+    <!-- Place all elements under Toolbar -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/toolbarGuideline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_begin="?attr/actionBarSize" />
+
     <TextView
         android:id="@+id/lobbyNameTextView"
         android:layout_width="0dp"
@@ -15,7 +23,7 @@
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/toolbarGuideline"
         tools:text="Awesome Game Lobby" />
 
     <TextView
@@ -95,6 +103,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/toolbarGuideline" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
