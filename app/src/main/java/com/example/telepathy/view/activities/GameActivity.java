@@ -24,6 +24,7 @@ import com.example.telepathy.controller.FirebaseController;
 import com.example.telepathy.controller.GameController;
 import com.example.telepathy.model.Game;
 import com.example.telepathy.model.GameRound;
+import com.example.telepathy.model.Lobby;
 import com.example.telepathy.model.Player;
 import com.example.telepathy.view.adapters.PlayerListAdapter;
 import com.example.telepathy.view.adapters.WordHistoryAdapter;
@@ -67,6 +68,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     private boolean isRoundActive = false;
 
     private FirebaseController firebaseController;
+    private AlertDialog dialog;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -242,7 +245,22 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     public void onGameStateChanged(Game game) {
         // Update UI with game state
         runOnUiThread(() -> {
-            lobbyNameTextView.setText(game.getLobbyId());
+            if (!"gameEnd".equals(game.getStatus())) {
+                firebaseController.getLobbyById(lobbyId, new FirebaseController.FirebaseCallback() {
+                    @Override
+                    public void onSuccess(Object result) {
+                        Lobby lobby = (Lobby) result;
+                        if (lobby != null) {
+                            runOnUiThread(() -> lobbyNameTextView.setText(lobby.getName()));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        Log.e("GameActivity", "Failed to load lobby name: " + error);
+                    }
+                });
+            }
 
             // Update player list
             players.clear();
@@ -422,15 +440,28 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     @Override
     public void onGameEnd(Player winner) {
         runOnUiThread(() -> {
-            // Stop timer
-            if (countDownTimer != null) {
-                countDownTimer.cancel();
+            if (countDownTimer != null) countDownTimer.cancel();
+
+            Log.d("TELEPATHY", "Game ended. isHost=" + isHost + ", lobbyId=" + lobbyId);
+
+            if (isHost && lobbyId != null) {
+                firebaseController.deleteLobby(lobbyId, new FirebaseController.FirebaseCallback() {
+                    @Override
+                    public void onSuccess(Object result) {
+                        Log.d("TELEPATHY", "Lobby deleted successfully");
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        Log.e("TELEPATHY", "Failed to delete lobby: " + error);
+                    }
+                });
             }
 
-            // Show game end dialog
             showGameEndDialog(winner);
         });
     }
+
 
     @Override
     public void onError(String error) {
@@ -461,31 +492,43 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     }
 
     private void showGameEndDialog(Player winner) {
+        if (isFinishing() || isDestroyed()) return;
+
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Game Over!");
 
         String message;
         if (winner != null) {
-            if (winner.getId().equals(playerId)) {
-                message = "Congratulations! You won the game!";
-            } else {
-                message = winner.getUsername() + " has won the game!";
-            }
+            message = winner.getId().equals(playerId)
+                    ? "Congratulations! You won the game!"
+                    : winner.getUsername() + " has won the game!";
         } else {
             message = "The game has ended.";
         }
 
         builder.setMessage(message);
         builder.setCancelable(false);
-        builder.setPositiveButton("Back to Main Menu", (dialog, which) -> {
-            // Go back to main menu
-            Intent intent = new Intent(this, MainActivity.class);
-            intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-            startActivity(intent);
-            finish();
+
+        dialog = builder.create();
+
+        dialog.setButton(AlertDialog.BUTTON_POSITIVE, "Back to Main Menu", (d, which) -> {
+            // Do nothing here – we'll handle finish() in onDismiss
         });
-        builder.show();
+
+        dialog.setOnDismissListener(d -> {
+            // Now it's safe to navigate away
+            if (!isFinishing() && !isDestroyed()) {
+                Intent intent = new Intent(GameActivity.this, MainActivity.class);
+                intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+                finish();
+            }
+        });
+
+        dialog.show();
     }
+
+
 
     @Override
     protected void onDestroy() {
@@ -498,6 +541,10 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
 
         if (gameController != null) {
             gameController.cleanup();
+        }
+        // Dismiss any dialog if open
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
         }
     }
 }

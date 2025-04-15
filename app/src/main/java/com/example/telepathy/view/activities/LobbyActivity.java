@@ -168,6 +168,7 @@ public class LobbyActivity extends AppCompatActivity {
                 hostName = player.getUsername();
                 if (player.getId().equals(playerId)) {
                     currentPlayerIsHost = true;
+                    isHost = true;
                 }
                 break;
             }
@@ -232,6 +233,7 @@ public class LobbyActivity extends AppCompatActivity {
         intent.putExtra("lobbyId", lobbyId);
         intent.putExtra("gameId", gameId);
         intent.putExtra("playerId", playerId);
+        intent.putExtra("isHost", isHost); // This is needed
         startActivity(intent);
         finish();
     }
