@@ -2,6 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".TelepathyApplication"
         android:allowBackup="true"
@@ -44,6 +46,11 @@
 
         <activity
             android:name=".view.activities.LobbyActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Telepathy" />
+
+        <activity
+            android:name=".view.activities.VideoActivity"
             android:exported="false"
             android:theme="@style/Theme.Telepathy" />
     </application>

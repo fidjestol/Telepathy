@@ -1,5 +1,6 @@
 package com.example.telepathy.view.fragments;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -13,6 +14,7 @@ import androidx.fragment.app.Fragment;
 
 import com.example.telepathy.R;
 import com.example.telepathy.view.activities.MainActivity;
+import com.example.telepathy.view.activities.VideoActivity;
 
 public class MenuFragment extends Fragment {
     private String playerName;
@@ -21,7 +23,8 @@ public class MenuFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+            @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_menu, container, false);
 
         // Get player name from arguments
@@ -35,12 +38,19 @@ public class MenuFragment extends Fragment {
 
         createLobbyButton = view.findViewById(R.id.createLobbyButton);
         joinLobbyButton = view.findViewById(R.id.joinLobbyButton);
+        Button watchVideoButton = view.findViewById(R.id.watchVideoButton);
 
         // Set click listeners
         createLobbyButton.setOnClickListener(v -> navigateToCreateLobby());
         joinLobbyButton.setOnClickListener(v -> navigateToJoinLobby());
+        watchVideoButton.setOnClickListener(v -> navigateToVideo());
 
         return view;
+    }
+
+    private void navigateToVideo() {
+        Intent intent = new Intent(getActivity(), VideoActivity.class);
+        startActivity(intent);
     }
 
     private void navigateToCreateLobby() {
