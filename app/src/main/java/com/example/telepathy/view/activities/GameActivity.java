@@ -108,15 +108,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
 
         wordHistoryRecyclerView = findViewById(R.id.wordHistoryRecyclerView);
         wordHistoryRecyclerView.setLayoutManager(new LinearLayoutManager(this));
-        wordHistoryAdapter = new WordHistoryAdapter(usedWords);
+        wordHistoryAdapter = new WordHistoryAdapter();
         wordHistoryRecyclerView.setAdapter(wordHistoryAdapter);
-
-        // Hide available words list and label
-        wordsRecyclerView.setVisibility(View.VISIBLE);
-        View wordsLabelTextView = findViewById(R.id.wordsLabelTextView);
-        if (wordsLabelTextView != null) {
-            wordsLabelTextView.setVisibility(View.GONE);
-        }
 
         // Make sure word history is visible
         wordHistoryRecyclerView.setVisibility(View.VISIBLE);
@@ -214,12 +207,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         wordInputEditText.setEnabled(false);
         submitButton.setEnabled(false);
 
-        // Add your word to the history immediately
-        usedWords.add("You: " + word);
-        wordHistoryAdapter.notifyDataSetChanged();
-
-        // Auto-scroll to the bottom
-        wordHistoryRecyclerView.scrollToPosition(usedWords.size() - 1);
+        // Add word to history
+        wordHistoryAdapter.addWord(word);
 
         // Show feedback
         Toast.makeText(this, "Word submitted! Waiting for other players...", Toast.LENGTH_SHORT).show();
@@ -300,8 +289,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             // Hide available words
             wordsRecyclerView.setVisibility(View.GONE);
 
-            // Show word history (may have words from previous rounds)
-            wordHistoryRecyclerView.setVisibility(View.VISIBLE);
+            // Add a system message for new round
+            wordHistoryAdapter.addSystemMessage("Round " + round.getRoundNumber() + " started");
 
             // Reset player submission display
             playerListAdapter.setShowSubmissions(false);
@@ -336,18 +325,15 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             wordInputEditText.setEnabled(false);
             submitButton.setEnabled(false);
 
-            // Show player submissions in the UI
+            // Update player submissions in the UI
             updatePlayerSubmissions();
 
-            // Update the word history with all player submissions
+            // Add other players' words to history
             for (Player player : players) {
                 String word = player.getCurrentWord();
-                if (word != null && !word.isEmpty()) {
-                    // Don't re-add the current player's word (already added on submit)
-                    if (!player.getId().equals(playerId)) {
-                        String displayName = player.getUsername();
-                        usedWords.add(displayName + ": " + word);
-                    }
+                if (word != null && !word.isEmpty() && !player.getId().equals(playerId)) {
+                    // Just add the word itself, not who submitted it
+                    wordHistoryAdapter.addWord(word);
                 }
             }
 
@@ -428,9 +414,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
                 Toast.makeText(this, player.getUsername() + " has been eliminated!", Toast.LENGTH_SHORT).show();
 
                 // Add elimination message to history
-                usedWords.add("SYSTEM: " + player.getUsername() + " has been eliminated!");
-                wordHistoryAdapter.notifyDataSetChanged();
-                wordHistoryRecyclerView.scrollToPosition(usedWords.size() - 1);
+                wordHistoryAdapter.addSystemMessage(player.getUsername() + " has been eliminated!");
             }
 
             // Update player list

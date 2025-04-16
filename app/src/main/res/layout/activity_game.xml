@@ -51,104 +51,114 @@
         app:layout_constraintTop_toBottomOf="@+id/timerTextView"
         tools:text="Lives: 3" />
 
-    <!-- Player list -->
-    <TextView
-        android:id="@+id/playersLabelTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <!-- Main game content area with players and history -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/gameContentLayout"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         android:layout_marginTop="16dp"
-        android:text="@string/players"
-        android:textStyle="bold"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/roundTextView" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/playersRecyclerView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/recycler_background"
-        android:padding="8dp"
-        app:layout_constraintBottom_toTopOf="@+id/wordInputEditText"
-        app:layout_constraintEnd_toStartOf="@+id/wordsRecyclerView"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/playersLabelTextView"
-        app:layout_constraintVertical_weight="2"
-        app:layout_constraintWidth_percent="0.3"
-        tools:listitem="@layout/item_player" />
-
-    <!-- Word list and input controls -->
-    <TextView
-        android:id="@+id/wordsLabelTextView"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/available_words"
-        android:textStyle="bold"
-        app:layout_constraintStart_toStartOf="@+id/wordsRecyclerView"
-        app:layout_constraintTop_toBottomOf="@+id/roundTextView" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/wordsRecyclerView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginStart="8dp"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/recycler_background"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        app:layout_constraintBottom_toTopOf="@+id/wordInputEditText"
+        android:layout_marginBottom="16dp"
+        app:layout_constraintBottom_toTopOf="@+id/inputLayout"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/playersRecyclerView"
-        app:layout_constraintTop_toBottomOf="@+id/wordsLabelTextView"
-        app:layout_constraintVertical_weight="2"
-        tools:listitem="@layout/item_word" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/roundTextView">
 
-    <TextView
-        android:id="@+id/wordHistoryLabel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Word History"
-        android:textStyle="bold"
-        app:layout_constraintStart_toStartOf="@id/wordsRecyclerView"
-        app:layout_constraintTop_toBottomOf="@id/wordsRecyclerView"
-        android:layout_marginTop="16dp" />
+        <!-- Left side: Player list (30%) -->
+        <LinearLayout
+            android:id="@+id/playerListContainer"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            app:layout_constraintEnd_toStartOf="@+id/wordHistoryContainer"
+            app:layout_constraintHorizontal_weight="0.3"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintWidth_percent="0.3">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/wordHistoryRecyclerView"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/recycler_background"
-        android:padding="8dp"
-        app:layout_constraintBottom_toTopOf="@+id/wordInputEditText"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/playersRecyclerView"
-        app:layout_constraintTop_toBottomOf="@+id/wordHistoryLabel" />
+            <TextView
+                android:id="@+id/playersLabelTextView"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/players"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/playersRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="8dp"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/recycler_background"
+                android:padding="8dp"
+                tools:listitem="@layout/item_player" />
+        </LinearLayout>
+
+        <!-- Right side: Word history (70%) -->
+        <LinearLayout
+            android:id="@+id/wordHistoryContainer"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_weight="0.7"
+            app:layout_constraintStart_toEndOf="@+id/playerListContainer"
+            app:layout_constraintWidth_percent="0.7">
+
+            <TextView
+                android:id="@+id/wordHistoryLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Used Words"
+                android:textStyle="bold" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/wordHistoryRecyclerView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/recycler_background"
+                android:padding="8dp"
+                tools:listitem="@layout/item_word" />
+        </LinearLayout>
+
+        <!-- Hidden wordsRecyclerView (not shown to player) -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/wordsRecyclerView"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <!-- Word input area -->
-    <EditText
-        android:id="@+id/wordInputEditText"
+    <LinearLayout
+        android:id="@+id/inputLayout"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="8dp"
-        android:layout_marginBottom="16dp"
-        android:hint="@string/enter_word"
-        android:inputType="text"
-        android:maxLength="20"
+        android:orientation="horizontal"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/submitButton"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <Button
-        android:id="@+id/submitButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/submit"
-        app:layout_constraintBottom_toBottomOf="@+id/wordInputEditText"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@+id/wordInputEditText" />
+        app:layout_constraintStart_toStartOf="parent">
+
+        <EditText
+            android:id="@+id/wordInputEditText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_weight="1"
+            android:hint="@string/enter_word"
+            android:inputType="text"
+            android:maxLength="20" />
+
+        <Button
+            android:id="@+id/submitButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/submit" />
+    </LinearLayout>
 
     <!-- Waiting for game to start layout -->
     <LinearLayout
@@ -194,9 +204,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/lobbyNameTextView">
-
         <!-- Game UI is contained within this layout -->
-
     </FrameLayout>
 
     <ProgressBar
