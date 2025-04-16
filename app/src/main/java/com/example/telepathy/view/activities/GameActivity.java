@@ -8,6 +8,7 @@ import android.os.CountDownTimer;
 import android.os.Handler;
 import android.util.Log;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
@@ -30,6 +31,7 @@ import com.example.telepathy.view.adapters.WordHistoryAdapter;
 import com.example.telepathy.view.adapters.WordListAdapter;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -108,6 +110,20 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         wordHistoryRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         wordHistoryAdapter = new WordHistoryAdapter(usedWords);
         wordHistoryRecyclerView.setAdapter(wordHistoryAdapter);
+
+        // Hide available words list and label
+        wordsRecyclerView.setVisibility(View.VISIBLE);
+        View wordsLabelTextView = findViewById(R.id.wordsLabelTextView);
+        if (wordsLabelTextView != null) {
+            wordsLabelTextView.setVisibility(View.GONE);
+        }
+
+        // Make sure word history is visible
+        wordHistoryRecyclerView.setVisibility(View.VISIBLE);
+        View wordHistoryLabel = findViewById(R.id.wordHistoryLabel);
+        if (wordHistoryLabel != null) {
+            wordHistoryLabel.setVisibility(View.VISIBLE);
+        }
 
         // Set click listener
         submitButton.setOnClickListener(v -> submitWord());
@@ -198,6 +214,13 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         wordInputEditText.setEnabled(false);
         submitButton.setEnabled(false);
 
+        // Add your word to the history immediately
+        usedWords.add("You: " + word);
+        wordHistoryAdapter.notifyDataSetChanged();
+
+        // Auto-scroll to the bottom
+        wordHistoryRecyclerView.scrollToPosition(usedWords.size() - 1);
+
         // Show feedback
         Toast.makeText(this, "Word submitted! Waiting for other players...", Toast.LENGTH_SHORT).show();
 
@@ -229,6 +252,11 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
                 submitButton.setEnabled(false);
 
                 Toast.makeText(GameActivity.this, "Time's up!", Toast.LENGTH_SHORT).show();
+
+                // Important: Tell the server the round has ended due to timer expiration
+                if (gameController != null) {
+                    gameController.handleTimerExpired();
+                }
             }
         }.start();
 
@@ -258,24 +286,26 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             }
         });
     }
+
     @SuppressLint("NotifyDataSetChanged")
     @Override
     public void onRoundStart(GameRound round) {
         runOnUiThread(() -> {
             roundTextView.setText(getString(R.string.round_number, round.getRoundNumber()));
 
-            // Update available words for this round
+            // Update available words for this round but hide them from player
             validWords.clear();
             validWords.addAll(round.getWords());
-            wordListAdapter.notifyDataSetChanged();
+
+            // Hide available words
+            wordsRecyclerView.setVisibility(View.GONE);
+
+            // Show word history (may have words from previous rounds)
+            wordHistoryRecyclerView.setVisibility(View.VISIBLE);
 
             // Reset player submission display
             playerListAdapter.setShowSubmissions(false);
             playerListAdapter.notifyDataSetChanged();
-
-            // Make sure words recycler view is visible and history is hidden during active round
-            wordsRecyclerView.setVisibility(View.VISIBLE);
-            wordHistoryRecyclerView.setVisibility(View.GONE);
 
             // Start timer
             long duration = (round.getEndTime() - round.getStartTime());
@@ -291,6 +321,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             Toast.makeText(this, "Round " + round.getRoundNumber() + " started", Toast.LENGTH_SHORT).show();
         });
     }
+
     @Override
     public void onRoundEnd(GameRound round) {
         runOnUiThread(() -> {
@@ -307,6 +338,24 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
 
             // Show player submissions in the UI
             updatePlayerSubmissions();
+
+            // Update the word history with all player submissions
+            for (Player player : players) {
+                String word = player.getCurrentWord();
+                if (word != null && !word.isEmpty()) {
+                    // Don't re-add the current player's word (already added on submit)
+                    if (!player.getId().equals(playerId)) {
+                        String displayName = player.getUsername();
+                        usedWords.add(displayName + ": " + word);
+                    }
+                }
+            }
+
+            wordHistoryAdapter.notifyDataSetChanged();
+            // Scroll to latest item
+            if (!usedWords.isEmpty()) {
+                wordHistoryRecyclerView.scrollToPosition(usedWords.size() - 1);
+            }
 
             // Display round end message
             Toast.makeText(this, "Round ended! Next round starting soon...", Toast.LENGTH_SHORT).show();
@@ -365,43 +414,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         playerListAdapter.setShowSubmissions(true);
         playerListAdapter.setDuplicateWords(wordCounts);
         playerListAdapter.notifyDataSetChanged();
-
-        // Add submitted words to the word history
-        for (Player player : players) {
-            String word = player.getCurrentWord();
-            if (word != null && !word.isEmpty()) {
-                // Check if this word is already in the used words list
-                boolean alreadyAdded = false;
-                for (String usedWord : usedWords) {
-                    if (usedWord.equalsIgnoreCase(word)) {
-                        alreadyAdded = true;
-                        break;
-                    }
-                }
-
-                // Only add unique words to the list
-                if (!alreadyAdded) {
-                    // Add information if this is a duplicate word
-                    boolean isDuplicate = wordCounts.getOrDefault(word, 0) > 1;
-                    String displayWord = word;
-                    if (isDuplicate) {
-                        displayWord = "⚠️ " + word + " (" + wordCounts.get(word) + " players)";
-                    } else {
-                        displayWord = "✓ " + word;
-                    }
-                    usedWords.add(displayWord);
-                }
-            }
-        }
-
-        // Switch views to show the history
-        wordsRecyclerView.setVisibility(View.GONE);
-        wordHistoryRecyclerView.setVisibility(View.VISIBLE);
-
-        // Update adapters
-        wordListAdapter.notifyDataSetChanged();
-        wordHistoryAdapter.notifyDataSetChanged();
     }
+
     @SuppressLint("NotifyDataSetChanged")
     @Override
     public void onPlayerEliminated(Player player) {
@@ -412,6 +426,11 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             } else {
                 // Another player eliminated
                 Toast.makeText(this, player.getUsername() + " has been eliminated!", Toast.LENGTH_SHORT).show();
+
+                // Add elimination message to history
+                usedWords.add("SYSTEM: " + player.getUsername() + " has been eliminated!");
+                wordHistoryAdapter.notifyDataSetChanged();
+                wordHistoryRecyclerView.scrollToPosition(usedWords.size() - 1);
             }
 
             // Update player list
@@ -452,6 +471,11 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         builder.setPositiveButton("Spectate", (dialog, which) -> {
             // Stay in the game as spectator
             dialog.dismiss();
+
+            // Add elimination message to history
+            usedWords.add("SYSTEM: You have been eliminated!");
+            wordHistoryAdapter.notifyDataSetChanged();
+            wordHistoryRecyclerView.scrollToPosition(usedWords.size() - 1);
         });
         builder.setNegativeButton("Exit", (dialog, which) -> {
             // Leave the game
@@ -460,33 +484,77 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         builder.show();
     }
 
-    private void showGameEndDialog(Player winner) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Game Over!");
+// In GameActivity.java - replace the showGameEndDialog method with this:
 
-        String message;
-        if (winner != null) {
-            if (winner.getId().equals(playerId)) {
-                message = "Congratulations! You won the game!";
-            } else {
-                message = winner.getUsername() + " has won the game!";
-            }
-        } else {
-            message = "The game has ended.";
+    private void showGameEndDialog(Player winner) {
+        // Stop any active timers
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
         }
 
-        builder.setMessage(message);
-        builder.setCancelable(false);
-        builder.setPositiveButton("Back to Main Menu", (dialog, which) -> {
-            // Go back to main menu
+        // Hide the regular game UI
+        gameControlsLayout.setVisibility(View.GONE);
+
+        // Inflate the game end screen
+        View endScreenView = getLayoutInflater().inflate(R.layout.dialog_game_over, null);
+
+        // Add the end screen to the main container
+        ViewGroup rootView = findViewById(android.R.id.content);
+        rootView.addView(endScreenView);
+
+        // Find views in the end screen
+        TextView gameEndTitleTextView = endScreenView.findViewById(R.id.gameEndTitleTextView);
+        TextView winnerNameTextView = endScreenView.findViewById(R.id.winnerNameTextView);
+        TextView noWinnerTextView = endScreenView.findViewById(R.id.noWinnerTextView);
+        TextView finalScoreTextView = endScreenView.findViewById(R.id.finalScoreTextView);
+        Button backToMenuButton = endScreenView.findViewById(R.id.backToMenuButton);
+        RecyclerView finalLeaderboardRecyclerView = endScreenView.findViewById(R.id.finalLeaderboardRecyclerView);
+
+        // Set up the leaderboard
+        finalLeaderboardRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        // Create a sorted list of players for the final leaderboard
+        List<Player> sortedPlayers = new ArrayList<>(players);
+        Collections.sort(sortedPlayers, (p1, p2) -> p2.getScore() - p1.getScore());
+
+        // Use your existing player adapter or create a special one for the end screen
+        PlayerListAdapter leaderboardAdapter = new PlayerListAdapter(sortedPlayers);
+        finalLeaderboardRecyclerView.setAdapter(leaderboardAdapter);
+
+        // Set appropriate content based on game outcome
+        if (winner != null) {
+            // We have a winner
+            winnerNameTextView.setVisibility(View.VISIBLE);
+            noWinnerTextView.setVisibility(View.GONE);
+
+            if (winner.getId().equals(playerId)) {
+                // Current player is the winner
+                gameEndTitleTextView.setText("YOU WON!");
+                winnerNameTextView.setText("Congratulations!");
+            } else {
+                // Another player is the winner
+                gameEndTitleTextView.setText("GAME OVER");
+                winnerNameTextView.setText(winner.getUsername() + " is the winner!");
+            }
+
+            // Show the winner's score
+            finalScoreTextView.setText("Score: " + winner.getScore());
+        } else {
+            // No winner (everyone eliminated)
+            gameEndTitleTextView.setText("GAME OVER");
+            winnerNameTextView.setVisibility(View.GONE);
+            noWinnerTextView.setVisibility(View.VISIBLE);
+            finalScoreTextView.setVisibility(View.GONE);
+        }
+
+        // Set up button to return to main menu
+        backToMenuButton.setOnClickListener(v -> {
             Intent intent = new Intent(this, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(intent);
             finish();
         });
-        builder.show();
     }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();

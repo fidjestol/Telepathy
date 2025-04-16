@@ -143,7 +143,7 @@ public class CreateLobbyFragment extends Fragment {
         lobby.setGameConfig(config);
 
         // Save to Firebase
-        firebaseController.createLobby(lobbyName, host, new FirebaseController.FirebaseCallback() {
+        firebaseController.createLobbyWithConfig(lobby, new FirebaseController.FirebaseCallback() {
             @Override
             public void onSuccess(Object result) {
                 progressBar.setVisibility(View.GONE);
