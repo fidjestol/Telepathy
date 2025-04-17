@@ -1,7 +1,9 @@
 package com.example.telepathy.model;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class Game {
     private String gameId;
@@ -25,6 +27,18 @@ public class Game {
         this.players = players != null ? players : new ArrayList<>();
         this.roundCount = 0;
         this.status = "active";
+    }
+
+    private Set<String> usedWords = new HashSet<>();
+
+    public void addUsedWord(String word) {
+        if (word != null && !word.isEmpty()) {
+            usedWords.add(word.toLowerCase());
+        }
+    }
+
+    public boolean isWordAlreadyUsed(String word) {
+        return word != null && usedWords.contains(word.toLowerCase());
     }
 
     // Getters and setters

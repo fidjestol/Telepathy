@@ -1,6 +1,7 @@
 package com.example.telepathy.controller;
 
 import android.os.Handler;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -455,6 +456,62 @@ public class GameController {
         return players;
     }
 
+    // Add this method to GameController.java
+    public void handleTimerExpired() {
+        // Only end the round if it's still active
+        if (currentGame != null && "active".equals(currentGame.getStatus())) {
+            // End the round
+            firebaseController.endCurrentRound(gameId, new FirebaseController.FirebaseCallback() {
+                @Override
+                public void onSuccess(Object result) {
+                    Log.d("TELEPATHY", "Round ended due to timer expiration");
+                }
+
+                @Override
+                public void onFailure(String error) {
+                    if (updateListener != null) {
+                        updateListener.onError("Failed to end round: " + error);
+                    }
+                }
+            });
+        }
+    }
+
+    private void checkGameEndCondition(List<Player> players) {
+        int activePlayers = 0;
+        Player lastActivePlayer = null;
+
+        for (Player player : players) {
+            if (!player.isEliminated()) {
+                activePlayers++;
+                lastActivePlayer = player;
+            }
+        }
+
+        // Game is over when only one player remains or all players are eliminated
+        if (activePlayers <= 1) {
+            // Update game status to gameEnd
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("status", "gameEnd");
+
+            // If there's a winner (one player left), mark them as winner
+            if (activePlayers == 1 && lastActivePlayer != null) {
+                updates.put("winnerId", lastActivePlayer.getId());
+            }
+
+            // Update game status in Firebase
+            database.child("games").child(gameId).updateChildren(updates)
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful()) {
+                            Log.d("TELEPATHY", "Game ended successfully");
+                        } else {
+                            Log.e("TELEPATHY", "Failed to end game: " +
+                                    (task.getException() != null ? task.getException().getMessage() : "unknown error"));
+                        }
+                    });
+        }
+    }
+
     // Extract round data from Firebase
     private GameRound extractRoundData(Map<String, Object> gameData) {
         GameRound round = new GameRound();
@@ -576,9 +633,7 @@ public class GameController {
 
         // If validation passes, submit the word
         submitWord(word.trim().toLowerCase());
-    }
-
-    public void cleanup() {
+    }    public void cleanup() {
         if (gameListener != null) {
             firebaseController.removeGameListener(gameId, gameListener);
         }
