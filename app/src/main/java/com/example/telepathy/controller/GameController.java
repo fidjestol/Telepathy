@@ -46,10 +46,8 @@ public class GameController {
         void onError(String error);
     }
 
-
     private DatabaseReference database;
 
-    // Then update your constructor to initialize it:
     public GameController(String gameId, String playerId, GameUpdateListener listener) {
         this.gameId = gameId;
         this.currentPlayerId = playerId;
@@ -142,8 +140,12 @@ public class GameController {
                 }
             }
 
-            // Check if all players have submitted words
-            boolean shouldEndRound = checkAllPlayersSubmitted(players) && "active".equals(status);
+            // Check if all players have submitted words - ADD DEBUGGING
+            boolean shouldEndRound = false;
+            if ("active".equals(status)) {
+                shouldEndRound = checkAllPlayersSubmitted(players);
+                System.out.println("TELEPATHY_DEBUG: All players submitted: " + shouldEndRound);
+            }
 
             // Check if this is a new round
             boolean isNewRound = isNewRound(round);
@@ -155,6 +157,7 @@ public class GameController {
             if (isNewRound && "active".equals(status)) {
                 // Only keep the current round ID in the set
                 processedRounds.clear();
+                processedPlayers.clear(); // Also clear processed players set
             }
 
             // Notify listeners of state changes
@@ -162,17 +165,21 @@ public class GameController {
 
             // End round if everyone has submitted
             if (shouldEndRound) {
+                System.out.println("TELEPATHY: All players have submitted words, ending round");
                 endCurrentRound();
             }
         } catch (Exception e) {
+            System.out.println("TELEPATHY_ERROR: " + e.getMessage());
+            e.printStackTrace();
             if (updateListener != null) {
                 updateListener.onError("Error processing game update: " + e.getMessage());
             }
         }
     }
+
     // Process duplicate words and update Firebase
     private void processDuplicateWords(List<Player> players, GameRound round) {
-        // Reset the processed players set
+        // Reset the processed players set for this round
         processedPlayers.clear();
 
         // Find duplicate words
@@ -204,7 +211,7 @@ public class GameController {
                 // Mark this player as processed
                 processedPlayers.add(playerId);
 
-                // CRITICAL: Get the LATEST player data from Firebase to ensure accurate lives count
+                // Get the latest player data from Firebase to ensure accurate lives count
                 database.child("games").child(gameId).child("players").child(playerId).get()
                         .addOnCompleteListener(task -> {
                             if (task.isSuccessful() && task.getResult() != null) {
@@ -363,17 +370,31 @@ public class GameController {
     private boolean checkAllPlayersSubmitted(List<Player> players) {
         boolean allPlayersSubmitted = true;
         int activePlayers = 0;
+        int submittedCount = 0;
+
+        // Add better debugging
+        System.out.println("TELEPATHY_DEBUG: Checking player submissions:");
 
         for (Player player : players) {
             if (!player.isEliminated()) {
                 activePlayers++;
-                // If an active player hasn't submitted a word, not everyone is done
-                if (player.getCurrentWord() == null || player.getCurrentWord().isEmpty()) {
+                String word = player.getCurrentWord();
+                boolean hasSubmitted = word != null && !word.isEmpty();
+
+                System.out.println("TELEPATHY_DEBUG: Player " + player.getUsername() +
+                        " - Submitted: " + hasSubmitted +
+                        (hasSubmitted ? " (word: " + word + ")" : ""));
+
+                if (hasSubmitted) {
+                    submittedCount++;
+                } else {
                     allPlayersSubmitted = false;
-                    break;
                 }
             }
         }
+
+        System.out.println("TELEPATHY_DEBUG: " + submittedCount + " of " + activePlayers +
+                " active players have submitted words. All submitted: " + allPlayersSubmitted);
 
         // We need at least one active player and all must have submitted
         return allPlayersSubmitted && activePlayers > 0;
@@ -381,14 +402,16 @@ public class GameController {
 
     // Helper method to end the current round
     private void endCurrentRound() {
+        System.out.println("TELEPATHY_DEBUG: Ending current round for game " + gameId);
         firebaseController.endCurrentRound(gameId, new FirebaseController.FirebaseCallback() {
             @Override
             public void onSuccess(Object result) {
-                // Round ended successfully in Firebase
+                System.out.println("TELEPATHY_DEBUG: Round ended successfully");
             }
 
             @Override
             public void onFailure(String error) {
+                System.out.println("TELEPATHY_DEBUG: Failed to end round: " + error);
                 if (updateListener != null) {
                     updateListener.onError("Failed to end round: " + error);
                 }
@@ -456,24 +479,12 @@ public class GameController {
         return players;
     }
 
-    // Add this method to GameController.java
+    // Handle timer expiration
     public void handleTimerExpired() {
         // Only end the round if it's still active
         if (currentGame != null && "active".equals(currentGame.getStatus())) {
-            // End the round
-            firebaseController.endCurrentRound(gameId, new FirebaseController.FirebaseCallback() {
-                @Override
-                public void onSuccess(Object result) {
-                    Log.d("TELEPATHY", "Round ended due to timer expiration");
-                }
-
-                @Override
-                public void onFailure(String error) {
-                    if (updateListener != null) {
-                        updateListener.onError("Failed to end round: " + error);
-                    }
-                }
-            });
+            System.out.println("TELEPATHY_DEBUG: Timer expired, ending round");
+            endCurrentRound();
         }
     }
 
@@ -633,7 +644,9 @@ public class GameController {
 
         // If validation passes, submit the word
         submitWord(word.trim().toLowerCase());
-    }    public void cleanup() {
+    }
+
+    public void cleanup() {
         if (gameListener != null) {
             firebaseController.removeGameListener(gameId, gameListener);
         }

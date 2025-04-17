@@ -26,6 +26,7 @@ public class FirebaseController {
     private FirebaseAuth auth;
     private DatabaseReference database;
 
+
     // Interface for callbacks
     public interface FirebaseCallback {
         void onSuccess(Object result);
