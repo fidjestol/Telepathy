@@ -9,6 +9,7 @@ public class GameConfig {
     private int livesPerPlayer;
     private List<String> categories;
     private String selectedCategory;
+    private String gameMode;
 
     // Default constructor for Firebase
     public GameConfig() {
@@ -22,10 +23,11 @@ public class GameConfig {
         this.categories.add("Foods");
         this.categories.add("Sports");
         this.selectedCategory = "Animals";
+        this.gameMode = "Classic"; // Default game mode
     }
 
     // Constructor with custom parameters
-    public GameConfig(int timeLimit, int maxPlayers, int livesPerPlayer, String selectedCategory) {
+    public GameConfig(int timeLimit, int maxPlayers, int livesPerPlayer, String selectedCategory, String gameMode) {
         this.timeLimit = timeLimit;
         this.maxPlayers = maxPlayers;
         this.livesPerPlayer = livesPerPlayer;
@@ -35,6 +37,7 @@ public class GameConfig {
         this.categories.add("Foods");
         this.categories.add("Sports");
         this.selectedCategory = selectedCategory;
+        this.gameMode = gameMode;
     }
 
     // Getters and setters
@@ -82,5 +85,13 @@ public class GameConfig {
 
     public void setSelectedCategory(String selectedCategory) {
         this.selectedCategory = selectedCategory;
+    }
+
+    public String getGameMode() {
+        return gameMode;
+    }
+
+    public void setGameMode(String gameMode) {
+        this.gameMode = gameMode;
     }
 }

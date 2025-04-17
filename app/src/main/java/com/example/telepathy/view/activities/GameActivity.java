@@ -173,7 +173,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
 
         // Check if player has already submitted a word for this round
         for (Player player : players) {
-            if (player.getId().equals(playerId) && player.getCurrentWord() != null && !player.getCurrentWord().isEmpty()) {
+            if (player.getId().equals(playerId) && player.getCurrentWord() != null
+                    && !player.getCurrentWord().isEmpty()) {
                 Toast.makeText(this, "You've already submitted a word for this round", Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -201,20 +202,30 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         }
 
         // Validate and submit word
-        gameController.validateWord(word);
+        gameController.submitWord(word, new FirebaseController.FirebaseCallback() {
+            @Override
+            public void onSuccess(Object result) {
+                // Word submitted successfully
+                // Disable input after submission until next round
+                wordInputEditText.setEnabled(false);
+                submitButton.setEnabled(false);
 
-        // Disable input after submission until next round
-        wordInputEditText.setEnabled(false);
-        submitButton.setEnabled(false);
+                // Add word to history
+                wordHistoryAdapter.addWord(word);
 
-        // Add word to history
-        wordHistoryAdapter.addWord(word);
+                // Show feedback
+                Toast.makeText(GameActivity.this, "Word submitted! Waiting for other players...", Toast.LENGTH_SHORT)
+                        .show();
 
-        // Show feedback
-        Toast.makeText(this, "Word submitted! Waiting for other players...", Toast.LENGTH_SHORT).show();
+                // Clear input field
+                wordInputEditText.setText("");
+            }
 
-        // Clear input field
-        wordInputEditText.setText("");
+            @Override
+            public void onFailure(String error) {
+                Toast.makeText(GameActivity.this, "Failed to submit word: " + error, Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private void startTimer(long durationMillis) {
@@ -244,7 +255,17 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
 
                 // Important: Tell the server the round has ended due to timer expiration
                 if (gameController != null) {
-                    gameController.handleTimerExpired();
+                    firebaseController.endCurrentRound(gameId, new FirebaseController.FirebaseCallback() {
+                        @Override
+                        public void onSuccess(Object result) {
+                            Log.d("Telepathy", "Round ended due to timer expiration");
+                        }
+
+                        @Override
+                        public void onFailure(String error) {
+                            Log.e("Telepathy", "Failed to end round: " + error);
+                        }
+                    });
                 }
             }
         }.start();
@@ -353,8 +374,10 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             // Start countdown for next round (visible to all players)
             startNextRoundCountdown();
 
-            // No need to check for host - only the host should trigger the next round from Firebase
-            // The Firebase listener in all clients will receive the update and start the round
+            // No need to check for host - only the host should trigger the next round from
+            // Firebase
+            // The Firebase listener in all clients will receive the update and start the
+            // round
         });
     }
 
@@ -468,7 +491,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         builder.show();
     }
 
-// In GameActivity.java - replace the showGameEndDialog method with this:
+    // In GameActivity.java - replace the showGameEndDialog method with this:
 
     private void showGameEndDialog(Player winner) {
         // Stop any active timers
@@ -539,6 +562,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             finish();
         });
     }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();

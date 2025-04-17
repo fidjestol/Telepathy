@@ -31,6 +31,7 @@ public class CreateLobbyFragment extends Fragment {
     private EditText timeLimitEditText;
     private EditText livesEditText;
     private Spinner categorySpinner;
+    private Spinner gameModeSpinner;
     private Button createButton;
     private ProgressBar progressBar;
 
@@ -40,7 +41,8 @@ public class CreateLobbyFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+            @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_create_lobby, container, false);
 
         // Get player data from arguments
@@ -57,6 +59,7 @@ public class CreateLobbyFragment extends Fragment {
         timeLimitEditText = view.findViewById(R.id.timeLimitEditText);
         livesEditText = view.findViewById(R.id.livesEditText);
         categorySpinner = view.findViewById(R.id.categorySpinner);
+        gameModeSpinner = view.findViewById(R.id.gameModeSpinner);
         createButton = view.findViewById(R.id.createButton);
         progressBar = view.findViewById(R.id.progressBar);
 
@@ -69,16 +72,26 @@ public class CreateLobbyFragment extends Fragment {
                 Constants.CATEGORY_ANIMALS,
                 Constants.CATEGORY_COUNTRIES,
                 Constants.CATEGORY_FOODS,
-                Constants.CATEGORY_SPORTS
-        );
+                Constants.CATEGORY_SPORTS);
 
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(
                 requireContext(),
                 android.R.layout.simple_spinner_item,
-                categories
-        );
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        categorySpinner.setAdapter(adapter);
+                categories);
+        categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        categorySpinner.setAdapter(categoryAdapter);
+
+        // Set up game mode spinner
+        List<String> gameModes = Arrays.asList(
+                getString(R.string.game_mode_classic),
+                getString(R.string.game_mode_matching));
+
+        ArrayAdapter<String> gameModeAdapter = new ArrayAdapter<>(
+                requireContext(),
+                android.R.layout.simple_spinner_item,
+                gameModes);
+        gameModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        gameModeSpinner.setAdapter(gameModeAdapter);
 
         // Set click listener
         createButton.setOnClickListener(v -> createLobby());
@@ -91,6 +104,7 @@ public class CreateLobbyFragment extends Fragment {
         String timeLimitStr = timeLimitEditText.getText().toString().trim();
         String livesStr = livesEditText.getText().toString().trim();
         String selectedCategory = categorySpinner.getSelectedItem().toString();
+        String selectedGameMode = gameModeSpinner.getSelectedItem().toString();
 
         // Validate input
         if (lobbyName.isEmpty()) {
@@ -136,7 +150,8 @@ public class CreateLobbyFragment extends Fragment {
         host.setHost(true);
 
         // Create game config
-        GameConfig config = new GameConfig(timeLimit, Constants.DEFAULT_MAX_PLAYERS, lives, selectedCategory);
+        GameConfig config = new GameConfig(timeLimit, Constants.DEFAULT_MAX_PLAYERS, lives, selectedCategory,
+                selectedGameMode);
 
         // Create lobby
         Lobby lobby = new Lobby(lobbyName, host);
@@ -152,7 +167,8 @@ public class CreateLobbyFragment extends Fragment {
                 // Navigate to lobby activity/fragment
                 Toast.makeText(requireContext(), "Lobby created successfully!", Toast.LENGTH_SHORT).show();
 
-                // Navigate to game activity directly (or you could create a LobbyActivity to wait for players)
+                // Navigate to game activity directly (or you could create a LobbyActivity to
+                // wait for players)
                 if (getActivity() instanceof MainActivity) {
                     ((MainActivity) getActivity()).navigateToGameActivity(createdLobby.getId(), null);
                 }

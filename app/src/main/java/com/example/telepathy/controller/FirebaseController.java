@@ -29,6 +29,7 @@ public class FirebaseController {
     // Interface for callbacks
     public interface FirebaseCallback {
         void onSuccess(Object result);
+
         void onFailure(String error);
     }
 
@@ -45,8 +46,10 @@ public class FirebaseController {
     }
 
     // Helper method to update player data
-    public void updatePlayerData(String gameId, String playerId, Map<String, Object> updates, FirebaseCallback callback) {
-        if (gameId == null || gameId.isEmpty() || playerId == null || playerId.isEmpty() || updates == null || updates.isEmpty()) {
+    public void updatePlayerData(String gameId, String playerId, Map<String, Object> updates,
+            FirebaseCallback callback) {
+        if (gameId == null || gameId.isEmpty() || playerId == null || playerId.isEmpty() || updates == null
+                || updates.isEmpty()) {
             callback.onFailure("Invalid parameters for player update");
             return;
         }
@@ -57,8 +60,8 @@ public class FirebaseController {
                     if (task.isSuccessful()) {
                         callback.onSuccess(null);
                     } else {
-                        callback.onFailure(task.getException() != null ?
-                                task.getException().getMessage() : "Failed to update player data");
+                        callback.onFailure(task.getException() != null ? task.getException().getMessage()
+                                : "Failed to update player data");
                     }
                 });
     }
@@ -76,8 +79,8 @@ public class FirebaseController {
                     if (task.isSuccessful()) {
                         callback.onSuccess(null);
                     } else {
-                        callback.onFailure(task.getException() != null ?
-                                task.getException().getMessage() : "Failed to update game data");
+                        callback.onFailure(task.getException() != null ? task.getException().getMessage()
+                                : "Failed to update game data");
                     }
                 });
     }
@@ -99,8 +102,8 @@ public class FirebaseController {
                             callback.onFailure("Lobby not found");
                         }
                     } else {
-                        callback.onFailure(task.getException() != null ?
-                                task.getException().getMessage() : "Failed to retrieve lobby");
+                        callback.onFailure(task.getException() != null ? task.getException().getMessage()
+                                : "Failed to retrieve lobby");
                     }
                 });
     }
@@ -113,7 +116,7 @@ public class FirebaseController {
                         FirebaseUser firebaseUser = auth.getCurrentUser();
                         if (firebaseUser != null) {
                             // Create player profile
-                            User newUser = new User(firebaseUser.getUid(),username);
+                            User newUser = new User(firebaseUser.getUid(), username);
 
                             // Save to database
                             database.child("users").child(firebaseUser.getUid()).setValue(newUser)
@@ -126,8 +129,8 @@ public class FirebaseController {
                                     });
                         }
                     } else {
-                        callback.onFailure(task.getException() != null ?
-                                task.getException().getMessage() : "Registration failed");
+                        callback.onFailure(
+                                task.getException() != null ? task.getException().getMessage() : "Registration failed");
                     }
                 });
     }
@@ -149,8 +152,8 @@ public class FirebaseController {
                                     });
                         }
                     } else {
-                        callback.onFailure(task.getException() != null ?
-                                task.getException().getMessage() : "Login failed");
+                        callback.onFailure(
+                                task.getException() != null ? task.getException().getMessage() : "Login failed");
                     }
                 });
     }
@@ -276,156 +279,115 @@ public class FirebaseController {
     }
 
     public void startGame(String lobbyId, FirebaseCallback callback) {
-        database.child("lobbies").child(lobbyId).get()
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful() && task.getResult() != null) {
-                        try {
-                            // Get lobby data
-                            DataSnapshot snapshot = task.getResult();
-                            Object lobbyDataObj = snapshot.getValue();
+        // Get lobby data first
+        database.child("lobbies").child(lobbyId).get().addOnCompleteListener(task -> {
+            if (!task.isSuccessful() || task.getResult() == null || !task.getResult().exists()) {
+                callback.onFailure("Lobby not found");
+                return;
+            }
 
-                            // Add debug info
-                            System.out.println("LOBBY DATA TYPE: " + (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
+            Map<String, Object> lobbyData = (Map<String, Object>) task.getResult().getValue();
+            if (lobbyData == null) {
+                callback.onFailure("Invalid lobby data");
+                return;
+            }
 
-                            // Check data type before casting
-                            if (!(lobbyDataObj instanceof Map)) {
-                                callback.onFailure("Invalid lobby data format: " +
-                                        (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
-                                return;
-                            }
+            // Get players
+            Object playersObj = lobbyData.get("players");
+            Map<String, Object> playersMap = new HashMap<>();
 
-                            Map<String, Object> lobbyData = (Map<String, Object>) lobbyDataObj;
-
-                            // Get players data - CHECK THE TYPE!
-                            Object playersObj = lobbyData.get("players");
-
-                            // Debug info
-                            System.out.println("PLAYERS DATA TYPE: " + (playersObj != null ? playersObj.getClass().getName() : "null"));
-
-                            // Handle players data based on its actual type
-                            Map<String, Object> playersMap;
-                            if (playersObj instanceof Map) {
-                                playersMap = (Map<String, Object>) playersObj;
-                            } else if (playersObj instanceof List) {
-                                // Convert List to Map if needed
-                                List<Object> playersList = (List<Object>) playersObj;
-                                playersMap = new HashMap<>();
-                                for (int i = 0; i < playersList.size(); i++) {
-                                    Object player = playersList.get(i);
-                                    if (player instanceof Map) {
-                                        Map<String, Object> playerMap = (Map<String, Object>) player;
-                                        String id = (String) playerMap.get("id");
-                                        if (id != null) {
-                                            playersMap.put(id, player);
-                                        } else {
-                                            playersMap.put("player" + i, player);
-                                        }
-                                    }
-                                }
-                            } else {
-                                callback.onFailure("Invalid players data format: " +
-                                        (playersObj != null ? playersObj.getClass().getName() : "null"));
-                                return;
-                            }
-
-                            if (playersMap.size() < 1) {
-                                callback.onFailure("Cannot start game: not enough players");
-                                return;
-                            }
-
-                            // Close the lobby
-                            Map<String, Object> lobbyUpdates = new HashMap<>();
-                            lobbyUpdates.put("open", false);
-
-                            // Create game ID
-                            String gameId = database.child("games").push().getKey();
-                            if (gameId == null) {
-                                callback.onFailure("Failed to generate game ID");
-                                return;
-                            }
-
-                            // Get config data - CHECK THE TYPE!
-                            Object configObj = lobbyData.get("gameConfig");
-                            Map<String, Object> configData;
-
-                            if (configObj instanceof Map) {
-                                configData = (Map<String, Object>) configObj;
-                            } else {
-                                // Use default config
-                                configData = new HashMap<>();
-                                configData.put("timeLimit", 30);
-                                configData.put("maxPlayers", 8);
-                                configData.put("livesPerPlayer", 3);
-                                configData.put("selectedCategory", "Animals");
-                            }
-
-                            // Create game data
-                            Map<String, Object> gameData = new HashMap<>();
-                            gameData.put("lobbyId", lobbyId);
-                            gameData.put("players", playersMap);
-                            gameData.put("config", configData);
-                            gameData.put("status", "active");
-
-                            // Create first round
-                            Map<String, Object> roundData = new HashMap<>();
-                            roundData.put("roundNumber", 1);
-                            roundData.put("startTime", System.currentTimeMillis());
-
-                            // Get time limit
-                            long timeLimit = 30;
-                            Object timeLimitObj = configData.get("timeLimit");
-                            if (timeLimitObj instanceof Number) {
-                                timeLimit = ((Number) timeLimitObj).longValue();
-                            }
-
-                            roundData.put("endTime", System.currentTimeMillis() + (timeLimit * 1000));
-
-                            // Get category for word selection
-                            String category = "Animals";
-                            Object categoryObj = configData.get("selectedCategory");
-                            if (categoryObj instanceof String) {
-                                category = (String) categoryObj;
-                            }
-
-                            // Get words for the round
-                            List<String> words = WordSelection.getRandomWords(category, 20);
-                            roundData.put("words", words);
-
-                            gameData.put("currentRound", roundData);
-
-                            // Save game data
-                            database.child("games").child(gameId).setValue(gameData)
-                                    .addOnCompleteListener(gameTask -> {
-                                        if (gameTask.isSuccessful()) {
-                                            // Update lobby with game reference
-                                            lobbyUpdates.put("gameId", gameId);
-
-                                            database.child("lobbies").child(lobbyId)
-                                                    .updateChildren(lobbyUpdates)
-                                                    .addOnCompleteListener(lobbyTask -> {
-                                                        if (lobbyTask.isSuccessful()) {
-                                                            callback.onSuccess(gameId);
-                                                        } else {
-                                                            callback.onFailure("Failed to update lobby: " +
-                                                                    (lobbyTask.getException() != null ?
-                                                                            lobbyTask.getException().getMessage() : "unknown error"));
-                                                        }
-                                                    });
-                                        } else {
-                                            callback.onFailure("Failed to create game: " +
-                                                    (gameTask.getException() != null ?
-                                                            gameTask.getException().getMessage() : "unknown error"));
-                                        }
-                                    });
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            System.out.println("START GAME ERROR: " + e.getMessage());
-                            callback.onFailure("Error starting game: " + e.getMessage());
+            if (playersObj instanceof Map) {
+                playersMap = (Map<String, Object>) playersObj;
+            } else if (playersObj instanceof List) {
+                // Convert List to Map if needed
+                List<Object> playersList = (List<Object>) playersObj;
+                for (int i = 0; i < playersList.size(); i++) {
+                    Object player = playersList.get(i);
+                    if (player instanceof Map) {
+                        Map<String, Object> playerMap = (Map<String, Object>) player;
+                        String id = (String) playerMap.get("id");
+                        if (id != null) {
+                            playersMap.put(id, player);
+                        } else {
+                            playersMap.put("player" + i, player);
                         }
-                    } else {
-                        callback.onFailure("Lobby not found");
                     }
-                });
+                }
+            } else {
+                callback.onFailure("Invalid players data format");
+                return;
+            }
+
+            // Get config data
+            Object configObj = lobbyData.get("gameConfig");
+            Map<String, Object> configData;
+            if (configObj instanceof Map) {
+                configData = (Map<String, Object>) configObj;
+            } else {
+                // Use default config
+                configData = new HashMap<>();
+                configData.put("timeLimit", 30);
+                configData.put("maxPlayers", 8);
+                configData.put("livesPerPlayer", 3);
+                configData.put("selectedCategory", "Animals");
+                configData.put("gameMode", "Classic");
+            }
+
+            // Validate player count based on game mode
+            String gameMode = (String) configData.getOrDefault("gameMode", "Classic");
+            int maxPlayers = gameMode.equalsIgnoreCase("Matching") ? 2 : 8;
+
+            if (gameMode.equalsIgnoreCase("Matching") && playersMap.size() != 2) {
+                callback.onFailure("Matching mode requires exactly 2 players");
+                return;
+            }
+
+            if (playersMap.size() < 1 || playersMap.size() > maxPlayers) {
+                callback.onFailure("Invalid number of players for " + gameMode + " mode");
+                return;
+            }
+
+            // Create game ID
+            String gameId = database.child("games").push().getKey();
+            if (gameId == null) {
+                callback.onFailure("Failed to generate game ID");
+                return;
+            }
+
+            // Create game data
+            Map<String, Object> gameData = new HashMap<>();
+            gameData.put("lobbyId", lobbyId);
+            gameData.put("players", playersMap);
+            gameData.put("config", configData);
+            gameData.put("status", "active");
+
+            // Create first round
+            Map<String, Object> roundData = new HashMap<>();
+            roundData.put("roundNumber", 1);
+            roundData.put("startTime", System.currentTimeMillis());
+            roundData.put("timeLimit", configData.get("timeLimit"));
+            gameData.put("currentRound", roundData);
+
+            // Close the lobby
+            Map<String, Object> lobbyUpdates = new HashMap<>();
+            lobbyUpdates.put("open", false);
+            lobbyUpdates.put("gameId", gameId);
+
+            // Perform the updates
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("/games/" + gameId, gameData);
+            updates.put("/lobbies/" + lobbyId, lobbyUpdates);
+
+            database.updateChildren(updates).addOnCompleteListener(updateTask -> {
+                if (updateTask.isSuccessful()) {
+                    callback.onSuccess(gameId);
+                } else {
+                    callback.onFailure("Failed to start game: " +
+                            (updateTask.getException() != null ? updateTask.getException().getMessage()
+                                    : "unknown error"));
+                }
+            });
+        });
     }
 
     // Helper method to get words for a category
@@ -433,7 +395,8 @@ public class FirebaseController {
         return com.example.telepathy.model.WordSelection.getRandomWords(category, count);
     }
 
-    // Replace the endCurrentRound method in FirebaseController.java to automatically schedule the next round
+    // Replace the endCurrentRound method in FirebaseController.java to
+    // automatically schedule the next round
 
     public void endCurrentRound(String gameId, FirebaseCallback callback) {
         System.out.println("TELEPATHY: Ending current round for game " + gameId);
@@ -456,7 +419,7 @@ public class FirebaseController {
                             // Keep track of updates to make
                             Map<String, Object> updates = new HashMap<>();
                             // Use an array to track active players (can be modified inside the lambda)
-                            final int[] activePlayerCount = {0};
+                            final int[] activePlayerCount = { 0 };
 
                             // Process each player
                             if (playersData != null) {
@@ -466,12 +429,15 @@ public class FirebaseController {
 
                                     // Check if player is eliminated
                                     Object eliminatedObj = playerData.get("eliminated");
-                                    boolean isEliminated = (eliminatedObj instanceof Boolean && (Boolean) eliminatedObj);
+                                    boolean isEliminated = (eliminatedObj instanceof Boolean
+                                            && (Boolean) eliminatedObj);
 
                                     if (!isEliminated) {
                                         // Check if player submitted a word
                                         Object currentWordObj = playerData.get("currentWord");
-                                        String currentWord = (currentWordObj instanceof String) ? (String) currentWordObj : "";
+                                        String currentWord = (currentWordObj instanceof String)
+                                                ? (String) currentWordObj
+                                                : "";
 
                                         if (currentWord == null || currentWord.isEmpty()) {
                                             // Player didn't submit - penalize them
@@ -514,16 +480,19 @@ public class FirebaseController {
                             database.child("games").child(gameId).updateChildren(updates)
                                     .addOnCompleteListener(task -> {
                                         if (task.isSuccessful()) {
-                                            System.out.println("TELEPATHY: Round ended with " + remainingPlayers + " active players");
+                                            System.out.println("TELEPATHY: Round ended with " + remainingPlayers
+                                                    + " active players");
 
                                             // Add logic to handle game end or schedule next round
                                             if (remainingPlayers <= 1) {
                                                 // Game over - one or zero players left
-                                                database.child("games").child(gameId).child("status").setValue("gameEnd");
+                                                database.child("games").child(gameId).child("status")
+                                                        .setValue("gameEnd");
                                             } else {
                                                 // Schedule next round
                                                 Map<String, Object> roundUpdates = new HashMap<>();
-                                                roundUpdates.put("nextRoundStartTime", System.currentTimeMillis() + 5000);
+                                                roundUpdates.put("nextRoundStartTime",
+                                                        System.currentTimeMillis() + 5000);
                                                 roundUpdates.put("roundStarterId", UUID.randomUUID().toString());
                                                 database.child("games").child(gameId).updateChildren(roundUpdates);
                                             }
@@ -542,6 +511,7 @@ public class FirebaseController {
                     }
                 });
     }
+
     // Game methods
     public void submitWord(String gameId, String playerId, String word, FirebaseCallback callback) {
         database.child("games").child(gameId).child("players").child(playerId).child("currentWord")
@@ -559,7 +529,8 @@ public class FirebaseController {
         database.child("games").child(gameId).addValueEventListener(listener);
     }
 
-// Fix for startNextRound method in FirebaseController.java to prevent round skipping and word list issues
+    // Fix for startNextRound method in FirebaseController.java to prevent round
+    // skipping and word list issues
 
     public void startNextRound(String gameId, FirebaseCallback callback) {
         // Debug logging
@@ -581,7 +552,8 @@ public class FirebaseController {
                             // Get current status - only proceed if status is roundEnd
                             String status = (String) gameData.get("status");
                             if (!"roundEnd".equals(status)) {
-                                System.out.println("TELEPATHY: Cannot start next round - game status is " + status + " instead of roundEnd");
+                                System.out.println("TELEPATHY: Cannot start next round - game status is " + status
+                                        + " instead of roundEnd");
                                 callback.onFailure("Game is not in roundEnd status");
                                 return;
                             }
@@ -639,7 +611,8 @@ public class FirebaseController {
                             List<String> words = WordSelection.getRandomWords(category, 20);
                             newRoundData.put("words", words);
 
-                            System.out.println("TELEPATHY: Generated " + words.size() + " new words for round " + nextRoundNumber);
+                            System.out.println(
+                                    "TELEPATHY: Generated " + words.size() + " new words for round " + nextRoundNumber);
 
                             // Create combined update map
                             Map<String, Object> updates = new HashMap<>();
@@ -664,15 +637,18 @@ public class FirebaseController {
                             database.child("games").child(gameId).updateChildren(updates)
                                     .addOnCompleteListener(updateTask -> {
                                         if (updateTask.isSuccessful()) {
-                                            System.out.println("TELEPATHY: Successfully started round " + nextRoundNumber);
+                                            System.out.println(
+                                                    "TELEPATHY: Successfully started round " + nextRoundNumber);
                                             callback.onSuccess(null);
                                         } else {
                                             System.out.println("TELEPATHY: Failed to start round: " +
-                                                    (updateTask.getException() != null ?
-                                                            updateTask.getException().getMessage() : "unknown error"));
+                                                    (updateTask.getException() != null
+                                                            ? updateTask.getException().getMessage()
+                                                            : "unknown error"));
                                             callback.onFailure("Failed to start next round: " +
-                                                    (updateTask.getException() != null ?
-                                                            updateTask.getException().getMessage() : "unknown error"));
+                                                    (updateTask.getException() != null
+                                                            ? updateTask.getException().getMessage()
+                                                            : "unknown error"));
                                         }
                                     });
 
@@ -688,6 +664,7 @@ public class FirebaseController {
                     }
                 });
     }
+
     public void removeGameListener(String gameId, ValueEventListener listener) {
         database.child("games").child(gameId).removeEventListener(listener);
     }

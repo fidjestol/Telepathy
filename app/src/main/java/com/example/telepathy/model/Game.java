@@ -1,5 +1,7 @@
 package com.example.telepathy.model;
 
+import com.example.telepathy.model.gamemode.GameMode;
+import com.example.telepathy.model.gamemode.GameModeFactory;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -13,6 +15,7 @@ public class Game {
     private GameRound currentRound;
     private int roundCount;
     private String status; // "active", "roundEnd", "gameEnd"
+    private GameMode gameMode;
 
     // Default constructor for Firebase
     public Game() {
@@ -27,6 +30,17 @@ public class Game {
         this.players = players != null ? players : new ArrayList<>();
         this.roundCount = 0;
         this.status = "active";
+        initializeGameMode();
+    }
+
+    private void initializeGameMode() {
+        if (config != null) {
+            this.gameMode = GameModeFactory.createGameMode(config.getGameMode());
+            this.gameMode.initializeGame(gameId, config);
+            for (Player player : players) {
+                this.gameMode.addPlayer(player);
+            }
+        }
     }
 
     private Set<String> usedWords = new HashSet<>();
@@ -64,6 +78,7 @@ public class Game {
 
     public void setConfig(GameConfig config) {
         this.config = config;
+        initializeGameMode();
     }
 
     public List<Player> getPlayers() {
@@ -72,6 +87,11 @@ public class Game {
 
     public void setPlayers(List<Player> players) {
         this.players = players;
+        if (gameMode != null) {
+            for (Player player : players) {
+                gameMode.addPlayer(player);
+            }
+        }
     }
 
     public GameRound getCurrentRound() {
@@ -102,6 +122,9 @@ public class Game {
     public void addPlayer(Player player) {
         if (player != null && !playerExists(player.getId())) {
             players.add(player);
+            if (gameMode != null) {
+                gameMode.addPlayer(player);
+            }
         }
     }
 
@@ -124,75 +147,42 @@ public class Game {
     }
 
     public void startNewRound(List<String> words, long durationMillis) {
-        roundCount++;
-        currentRound = new GameRound(roundCount, durationMillis, words);
-        status = "active";
+        if (gameMode != null) {
+            gameMode.startRound();
+            this.roundCount = gameMode.getCurrentRound();
+            this.currentRound = new GameRound(this.roundCount, durationMillis, words);
+            status = gameMode.getGameStatus();
+        }
     }
 
     public void endRound() {
-        status = "roundEnd";
-        processDuplicateWords();
-    }
-
-    private void processDuplicateWords() {
-        if (currentRound == null) return;
-
-        // Find duplicate words and penalize players
-        for (String word : currentRound.findDuplicateWords().keySet()) {
-            List<String> playerIds = currentRound.findDuplicateWords().get(word);
-            for (String playerId : playerIds) {
-                Player player = getPlayerById(playerId);
-                if (player != null) {
-                    player.loseLife();
-                }
-            }
+        if (gameMode != null) {
+            gameMode.endRound();
+            status = gameMode.getGameStatus();
         }
-
-        // Check if game is over (only one player left)
-        int activePlayers = 0;
-        Player lastActivePlayer = null;
-
-        for (Player player : players) {
-            if (!player.isEliminated()) {
-                activePlayers++;
-                lastActivePlayer = player;
-            }
-        }
-
-        if (activePlayers <= 1) {
-            endGame();
-            if (lastActivePlayer != null) {
-                lastActivePlayer.addPoints(100); // Bonus points for winning
-            }
-        }
-    }
-
-    public void endGame() {
-        status = "gameEnd";
     }
 
     public boolean isGameOver() {
-        return "gameEnd".equals(status);
+        return gameMode != null && gameMode.isGameOver();
     }
 
     public List<Player> getActivePlayers() {
-        List<Player> activePlayers = new ArrayList<>();
-        for (Player player : players) {
-            if (!player.isEliminated()) {
-                activePlayers.add(player);
-            }
-        }
-        return activePlayers;
+        return gameMode != null ? gameMode.getActivePlayers() : new ArrayList<>();
     }
 
     public Player getWinner() {
-        if (!isGameOver()) return null;
+        return gameMode != null ? gameMode.getWinner() : null;
+    }
 
-        for (Player player : players) {
-            if (!player.isEliminated()) {
-                return player;
-            }
-        }
-        return null;
+    public boolean submitWord(String playerId, String word) {
+        return gameMode != null && gameMode.submitWord(playerId, word);
+    }
+
+    public boolean isRoundComplete() {
+        return gameMode != null && gameMode.isRoundComplete();
+    }
+
+    public GameMode getGameMode() {
+        return gameMode;
     }
 }
