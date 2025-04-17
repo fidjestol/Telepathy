@@ -63,10 +63,6 @@ public class CreateLobbyFragment extends Fragment {
         createButton = view.findViewById(R.id.createButton);
         progressBar = view.findViewById(R.id.progressBar);
 
-        // Set default values
-        timeLimitEditText.setText(String.valueOf(Constants.DEFAULT_TIME_LIMIT));
-        livesEditText.setText(String.valueOf(Constants.DEFAULT_LIVES));
-
         // Set up category spinner
         List<String> categories = Arrays.asList(
                 Constants.CATEGORY_ANIMALS,
@@ -81,17 +77,16 @@ public class CreateLobbyFragment extends Fragment {
         categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         categorySpinner.setAdapter(categoryAdapter);
 
-        // Set up game mode spinner
-        List<String> gameModes = Arrays.asList(
-                getString(R.string.game_mode_classic),
-                getString(R.string.game_mode_matching));
-
-        ArrayAdapter<String> gameModeAdapter = new ArrayAdapter<>(
-                requireContext(),
-                android.R.layout.simple_spinner_item,
-                gameModes);
+        // Setup game mode spinner
+        List<String> gameModes = Arrays.asList("classic", "matching");
+        ArrayAdapter<String> gameModeAdapter = new ArrayAdapter<>(requireContext(),
+                android.R.layout.simple_spinner_item, gameModes);
         gameModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         gameModeSpinner.setAdapter(gameModeAdapter);
+
+        // Set default values
+        timeLimitEditText.setText(String.valueOf(Constants.DEFAULT_TIME_LIMIT));
+        livesEditText.setText(String.valueOf(Constants.DEFAULT_LIVES));
 
         // Set click listener
         createButton.setOnClickListener(v -> createLobby());
@@ -149,9 +144,11 @@ public class CreateLobbyFragment extends Fragment {
         host.setId(playerId);
         host.setHost(true);
 
+        // Set max players based on game mode
+        int maxPlayers = selectedGameMode.equals("matching") ? 2 : Constants.DEFAULT_MAX_PLAYERS;
+
         // Create game config
-        GameConfig config = new GameConfig(timeLimit, Constants.DEFAULT_MAX_PLAYERS, lives, selectedCategory,
-                selectedGameMode);
+        GameConfig config = new GameConfig(timeLimit, maxPlayers, lives, selectedCategory, selectedGameMode);
 
         // Create lobby
         Lobby lobby = new Lobby(lobbyName, host);

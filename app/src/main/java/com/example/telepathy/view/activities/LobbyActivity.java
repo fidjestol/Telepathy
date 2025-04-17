@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.telepathy.R;
 import com.example.telepathy.controller.FirebaseController;
+import com.example.telepathy.model.GameConfig;
 import com.example.telepathy.model.Lobby;
 import com.example.telepathy.model.Player;
 import com.example.telepathy.view.adapters.PlayerListAdapter;
@@ -27,6 +28,7 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class LobbyActivity extends AppCompatActivity {
     private TextView lobbyNameTextView;
@@ -157,28 +159,43 @@ public class LobbyActivity extends AppCompatActivity {
 
     @SuppressLint("NotifyDataSetChanged")
     private void updateUI(Lobby lobby) {
+        if (lobby == null) {
+            return;
+        }
+
         lobbyNameTextView.setText(lobby.getName());
 
         // Find host name and determine if current player is the host
         String hostName = "Unknown";
         boolean currentPlayerIsHost = false;
 
-        for (Player player : lobby.getPlayers()) {
-            if (player.isHost()) {
-                hostName = player.getUsername();
-                if (player.getId().equals(playerId)) {
-                    currentPlayerIsHost = true;
+        List<Player> lobbyPlayers = lobby.getPlayers();
+        if (lobbyPlayers != null) {
+            for (Player player : lobbyPlayers) {
+                if (player != null && player.isHost()) {
+                    hostName = player.getUsername();
+                    if (player.getId().equals(playerId)) {
+                        currentPlayerIsHost = true;
+                    }
+                    break;
                 }
-                break;
             }
         }
 
         hostNameTextView.setText(getString(R.string.host_name, hostName));
-        categoryTextView.setText(getString(R.string.category_label, lobby.getGameConfig().getSelectedCategory()));
+
+        GameConfig config = lobby.getGameConfig();
+        if (config != null) {
+            categoryTextView.setText(getString(R.string.category_label, config.getSelectedCategory()));
+        } else {
+            categoryTextView.setText(getString(R.string.category_label, "Unknown"));
+        }
 
         // Update players list
         players.clear();
-        players.addAll(lobby.getPlayers());
+        if (lobbyPlayers != null) {
+            players.addAll(lobbyPlayers);
+        }
         playerListAdapter.notifyDataSetChanged();
 
         // Only show start button to host

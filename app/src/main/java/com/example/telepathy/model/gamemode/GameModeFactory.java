@@ -8,8 +8,10 @@ public class GameModeFactory {
 
         switch (mode.toLowerCase()) {
             case "matching":
+            case "matching mode":
                 return new MatchingMode();
             case "classic":
+            case "classic mode":
             default:
                 return new ClassicMode();
         }

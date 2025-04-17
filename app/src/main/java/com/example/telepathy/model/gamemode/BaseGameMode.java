@@ -80,6 +80,11 @@ public abstract class BaseGameMode implements GameMode {
         return roundCount;
     }
 
+    @Override
+    public void setCurrentRound(GameRound round) {
+        this.currentRound = round;
+    }
+
     // Abstract methods from GameMode interface that must be implemented by specific
     // game modes
     @Override

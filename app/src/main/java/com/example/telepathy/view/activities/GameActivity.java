@@ -142,12 +142,14 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     }
 
     private void startGame() {
+        Log.d("Telepathy", "Starting game for lobby: " + lobbyId);
         progressBar.setVisibility(View.VISIBLE);
 
         // Call Firebase to start the game
         firebaseController.startGame(lobbyId, new FirebaseController.FirebaseCallback() {
             @Override
             public void onSuccess(Object result) {
+                Log.d("Telepathy", "Game started successfully, got gameId: " + result);
                 gameId = (String) result;
                 gameController = new GameController(gameId, playerId, GameActivity.this);
 
@@ -159,6 +161,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
 
             @Override
             public void onFailure(String error) {
+                Log.e("Telepathy", "Failed to start game: " + error);
                 progressBar.setVisibility(View.GONE);
                 Toast.makeText(GameActivity.this, "Failed to start game: " + error, Toast.LENGTH_SHORT).show();
             }
@@ -187,21 +190,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             return;
         }
 
-        // Check if word is in the valid words list
-        boolean isValidWord = false;
-        for (String validWord : validWords) {
-            if (validWord.equalsIgnoreCase(word)) {
-                isValidWord = true;
-                break;
-            }
-        }
-
-        if (!isValidWord) {
-            Toast.makeText(this, "Word is not in the valid words list", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Validate and submit word
+        // Submit word - validation is handled server-side based on game mode
         gameController.submitWord(word, new FirebaseController.FirebaseCallback() {
             @Override
             public void onSuccess(Object result) {
@@ -233,6 +222,14 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         if (countDownTimer != null) {
             countDownTimer.cancel();
         }
+
+        // Set round as active and enable input BEFORE starting timer
+        isRoundActive = true;
+        wordInputEditText.setEnabled(true);
+        submitButton.setEnabled(true);
+
+        // Log timer start for debugging
+        Log.d("Telepathy", "Starting timer with duration: " + durationMillis + "ms. isRoundActive: " + isRoundActive);
 
         // Start new countdown timer
         countDownTimer = new CountDownTimer(durationMillis, 1000) {
@@ -269,11 +266,6 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
                 }
             }
         }.start();
-
-        // Enable input
-        wordInputEditText.setEnabled(true);
-        submitButton.setEnabled(true);
-        isRoundActive = true;
     }
 
     @Override
@@ -301,13 +293,29 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     @Override
     public void onRoundStart(GameRound round) {
         runOnUiThread(() -> {
+            // Set round active state FIRST
+            isRoundActive = true;
+
+            // Update round number display
             roundTextView.setText(getString(R.string.round_number, round.getRoundNumber()));
 
-            // Update available words for this round but hide them from player
-            validWords.clear();
-            validWords.addAll(round.getWords());
+            // Clear any previous round's state
+            wordInputEditText.setText("");
+            wordInputEditText.setEnabled(true);
+            submitButton.setEnabled(true);
 
-            // Hide available words
+            // Show game controls
+            gameControlsLayout.setVisibility(View.VISIBLE);
+            waitingLayout.setVisibility(View.GONE);
+
+            // Update available words for this round
+            validWords.clear();
+            if (round.getWords() != null) {
+                validWords.addAll(round.getWords());
+            }
+            wordListAdapter.notifyDataSetChanged();
+
+            // Hide available words in matching mode
             wordsRecyclerView.setVisibility(View.GONE);
 
             // Add a system message for new round
@@ -317,67 +325,69 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             playerListAdapter.setShowSubmissions(false);
             playerListAdapter.notifyDataSetChanged();
 
-            // Start timer
-            long duration = (round.getEndTime() - round.getStartTime());
-            startTimer(duration);
+            // Calculate remaining time for the round
+            long currentTime = System.currentTimeMillis();
+            long remainingTime = round.getEndTime() - currentTime;
 
-            // Clear input and enable it for new round
-            wordInputEditText.setText("");
-            wordInputEditText.setEnabled(true);
-            submitButton.setEnabled(true);
-            isRoundActive = true;
+            // Start timer with remaining time
+            if (remainingTime > 0) {
+                startTimer(remainingTime);
+            } else {
+                // If somehow we're past the end time, start with default duration
+                startTimer(30000); // 30 seconds
+            }
 
             // Show toast
             Toast.makeText(this, "Round " + round.getRoundNumber() + " started", Toast.LENGTH_SHORT).show();
+
+            // Log round start for debugging
+            Log.d("Telepathy", "Round " + round.getRoundNumber() + " started. isRoundActive: " + isRoundActive);
         });
     }
 
     @Override
     public void onRoundEnd(GameRound round) {
         runOnUiThread(() -> {
-            // Stop timer
+            // Cancel any existing timer
             if (countDownTimer != null) {
                 countDownTimer.cancel();
             }
 
-            isRoundActive = false;
+            // Get submitted words from the round
+            Map<String, String> submittedWords = round.getSubmittedWords();
+            if (submittedWords != null && !submittedWords.isEmpty()) {
+                StringBuilder message = new StringBuilder("Round ended!\n\nSubmitted words:\n");
+                for (Map.Entry<String, String> entry : submittedWords.entrySet()) {
+                    // Find player name
+                    String playerName = "Unknown";
+                    for (Player player : players) {
+                        if (player.getId().equals(entry.getKey())) {
+                            playerName = player.getUsername();
+                            break;
+                        }
+                    }
+                    message.append(playerName).append(": ").append(entry.getValue()).append("\n");
+                }
 
-            // Disable input
+                // Show the round end dialog with submitted words
+                new AlertDialog.Builder(this)
+                        .setTitle("Round " + round.getRoundNumber() + " Ended")
+                        .setMessage(message.toString())
+                        .setPositiveButton("OK", null)
+                        .show();
+            }
+
+            // Reset input for next round
             wordInputEditText.setEnabled(false);
             submitButton.setEnabled(false);
+            wordInputEditText.setText("");
+            isRoundActive = false;
 
-            // Update player submissions in the UI
-            updatePlayerSubmissions();
+            // Add round end message to history
+            wordHistoryAdapter.addSystemMessage("Round " + round.getRoundNumber() + " ended");
 
-            // Add other players' words to history
-            for (Player player : players) {
-                String word = player.getCurrentWord();
-                if (word != null && !word.isEmpty() && !player.getId().equals(playerId)) {
-                    // Just add the word itself, not who submitted it
-                    wordHistoryAdapter.addWord(word);
-                }
-            }
-
-            wordHistoryAdapter.notifyDataSetChanged();
-            // Scroll to latest item
-            if (!usedWords.isEmpty()) {
-                wordHistoryRecyclerView.scrollToPosition(usedWords.size() - 1);
-            }
-
-            // Display round end message
-            Toast.makeText(this, "Round ended! Next round starting soon...", Toast.LENGTH_SHORT).show();
-
-            // Add logging
-            Log.d("Telepathy", "Round ended. gameId=" + gameId);
-            System.out.println("TELEPATHY_DEBUG: Round ended. gameId=" + gameId);
-
-            // Start countdown for next round (visible to all players)
+            // Start countdown for next round
             startNextRoundCountdown();
-
-            // No need to check for host - only the host should trigger the next round from
-            // Firebase
-            // The Firebase listener in all clients will receive the update and start the
-            // round
         });
     }
 

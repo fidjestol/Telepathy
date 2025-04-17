@@ -2,6 +2,7 @@ package com.example.telepathy.model.gamemode;
 
 import com.example.telepathy.model.GameRound;
 import com.example.telepathy.model.Player;
+import com.example.telepathy.utils.WordListProvider;
 import java.util.List;
 import java.util.Map;
 
@@ -14,7 +15,9 @@ public class ClassicMode extends BaseGameMode {
     @Override
     public void startRound() {
         roundCount++;
-        currentRound = new GameRound(roundCount, getRoundTimeLimit(), null);
+        // Get word list for the selected category
+        List<String> wordList = WordListProvider.getWordsForCategory(config.getSelectedCategory());
+        currentRound = new GameRound(roundCount, getRoundTimeLimit(), wordList);
         status = "active";
     }
 

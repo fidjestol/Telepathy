@@ -11,6 +11,8 @@ public class GameRound {
     private long endTime;
     private List<String> words;
     private Map<String, List<String>> playerWords; // Maps player IDs to their submitted words
+    private boolean requiresWordValidation;
+    private Map<String, String> submittedWords;
 
     // Default constructor for Firebase
     public GameRound() {
@@ -19,6 +21,8 @@ public class GameRound {
         this.endTime = this.startTime + (30 * 1000); // Default 30 seconds
         this.words = new ArrayList<>();
         this.playerWords = new HashMap<>();
+        this.submittedWords = new HashMap<>();
+        this.requiresWordValidation = true;
     }
 
     public GameRound(int roundNumber, long durationMillis, List<String> words) {
@@ -27,6 +31,8 @@ public class GameRound {
         this.endTime = this.startTime + durationMillis;
         this.words = words != null ? words : new ArrayList<>();
         this.playerWords = new HashMap<>();
+        this.submittedWords = new HashMap<>();
+        this.requiresWordValidation = true;
     }
 
     // Getters and setters
@@ -59,7 +65,7 @@ public class GameRound {
     }
 
     public void setWords(List<String> words) {
-        this.words = words;
+        this.words = words != null ? words : new ArrayList<>();
     }
 
     public Map<String, List<String>> getPlayerWords() {
@@ -68,6 +74,14 @@ public class GameRound {
 
     public void setPlayerWords(Map<String, List<String>> playerWords) {
         this.playerWords = playerWords;
+    }
+
+    public Map<String, String> getSubmittedWords() {
+        return submittedWords;
+    }
+
+    public void setSubmittedWords(Map<String, String> submittedWords) {
+        this.submittedWords = submittedWords != null ? submittedWords : new HashMap<>();
     }
 
     // Helper methods
@@ -87,7 +101,19 @@ public class GameRound {
     }
 
     public boolean isWordValid(String word) {
-        return word != null && !word.isEmpty() && words.contains(word.toLowerCase());
+        // Basic validation - word must not be null or empty
+        if (word == null || word.trim().isEmpty()) {
+            return false;
+        }
+
+        // If words list is null or empty, or if validation is not required, any
+        // non-empty word is valid
+        if (words == null || words.isEmpty() || !requiresWordValidation) {
+            return true;
+        }
+
+        // Otherwise, check if the word is in the predefined list
+        return words.contains(word.toLowerCase().trim());
     }
 
     public boolean hasTimeExpired() {

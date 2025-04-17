@@ -13,10 +13,11 @@ public class Lobby {
     private String hostId;
     private String gameId;
 
-
     // Default constructor for Firebase
     public Lobby() {
-        // Required empty constructor for Firebase
+        // Initialize with empty lists to prevent null pointer exceptions
+        this.players = new ArrayList<>();
+        this.id = UUID.randomUUID().toString();
     }
 
     public Lobby(String name, Player host) {
@@ -50,6 +51,9 @@ public class Lobby {
     }
 
     public List<Player> getPlayers() {
+        if (players == null) {
+            players = new ArrayList<>();
+        }
         return players;
     }
 
@@ -114,10 +118,24 @@ public class Lobby {
     }
 
     public boolean isLobbyFull() {
+        if (gameConfig == null)
+            return false;
+        // For matching mode, lobby is full with 2 players
+        if ("matching".equals(gameConfig.getGameMode().toLowerCase())) {
+            return players.size() >= 2;
+        }
+        // For classic mode, use the configured max players
         return players.size() >= gameConfig.getMaxPlayers();
     }
 
     public boolean canStartGame() {
-        return players.size() >= 1; // Need at least 2 players to start
+        if (gameConfig == null)
+            return false;
+        // For matching mode, require exactly 2 players
+        if ("matching".equals(gameConfig.getGameMode().toLowerCase())) {
+            return players.size() == 2;
+        }
+        // For classic mode, require at least 2 players
+        return players.size() >= 2;
     }
 }

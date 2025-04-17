@@ -62,83 +62,122 @@ public class GameController {
         this.firebaseController = FirebaseController.getInstance();
         this.database = FirebaseDatabase.getInstance().getReference();
         initGameListener();
+
+        // Immediately fetch the current game state
+        database.child("games").child(gameId).get().addOnCompleteListener(task -> {
+            if (task.isSuccessful() && task.getResult() != null) {
+                DataSnapshot snapshot = task.getResult();
+                processGameUpdate(snapshot);
+            }
+        });
     }
 
     private void initGameListener() {
         gameListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                // Convert Firebase data to Game object
-                Map<String, Object> gameData = (Map<String, Object>) snapshot.getValue();
-                if (gameData != null) {
-                    // Process game data
-                    processGameUpdate(gameData);
-                }
+                processGameUpdate(snapshot);
             }
 
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 if (updateListener != null) {
-                    updateListener.onError("Game update failed: " + error.getMessage());
+                    updateListener.onError("Database error: " + error.getMessage());
                 }
             }
         };
 
-        // Start listening for game updates
         firebaseController.listenForGameUpdates(gameId, gameListener);
     }
 
-    private void processGameUpdate(Map<String, Object> gameData) {
-        if (gameData == null)
-            return;
+    private void processGameUpdate(DataSnapshot snapshot) {
+        try {
+            Map<String, Object> gameData = (Map<String, Object>) snapshot.getValue();
+            if (gameData == null)
+                return;
 
-        // Extract game configuration
-        GameConfig config = extractGameConfig(gameData);
+            String status = (String) gameData.get("status");
+            Map<String, Object> roundData = (Map<String, Object>) gameData.get("currentRound");
+            Map<String, Object> playersData = (Map<String, Object>) gameData.get("players");
+            Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
 
-        // Extract players
-        List<Player> players = extractPlayers(gameData);
+            // Create GameConfig first
+            GameConfig config = new GameConfig();
+            if (configData != null) {
+                config.setTimeLimit(((Number) configData.getOrDefault("timeLimit", 30)).intValue());
+                config.setMaxPlayers(((Number) configData.getOrDefault("maxPlayers", 8)).intValue());
+                config.setLivesPerPlayer(((Number) configData.getOrDefault("livesPerPlayer", 3)).intValue());
+                config.setSelectedCategory((String) configData.getOrDefault("selectedCategory", "Animals"));
+                config.setGameMode((String) configData.getOrDefault("gameMode", "Classic"));
+            }
 
-        // Extract round data
-        GameRound round = extractRoundData(gameData);
+            // Update current game state
+            if (currentGame == null) {
+                currentGame = new Game();
+                currentGame.setGameId(gameId);
+                currentGame.setConfig(config);
+            }
 
-        // Get game status
-        String status = (String) gameData.get("status");
-        if (status == null)
-            status = "active";
-
-        // Update game state
-        boolean isNewRound = false;
-        if (currentGame == null) {
-            currentGame = new Game(gameId, config, players);
-            isNewRound = round != null;
-        } else {
-            isNewRound = round != null && (currentGame.getCurrentRound() == null ||
-                    round.getRoundNumber() > currentGame.getCurrentRound().getRoundNumber());
-            currentGame.setConfig(config);
-            currentGame.setPlayers(players);
-        }
-
-        if (round != null) {
-            currentGame.setCurrentRound(round);
-        }
-        currentGame.setStatus(status);
-
-        // Check for eliminated players
-        for (Player player : players) {
-            if (player.isEliminated() && !processedPlayers.contains(player.getId())) {
-                processedPlayers.add(player.getId());
-                if (updateListener != null) {
-                    updateListener.onPlayerEliminated(player);
+            // Process players
+            List<Player> playerList = new ArrayList<>();
+            if (playersData != null) {
+                for (Map.Entry<String, Object> entry : playersData.entrySet()) {
+                    Map<String, Object> playerData = (Map<String, Object>) entry.getValue();
+                    Player player = new Player();
+                    player.setId(entry.getKey());
+                    player.setUsername((String) playerData.get("username"));
+                    player.setLives(((Number) playerData.get("lives")).intValue());
+                    player.setScore(((Number) playerData.get("score")).intValue());
+                    player.setEliminated((Boolean) playerData.getOrDefault("eliminated", false));
+                    player.setCurrentWord((String) playerData.get("currentWord"));
+                    playerList.add(player);
                 }
             }
-        }
+            currentGame.setPlayers(playerList);
 
-        // Notify about state changes
-        notifyStateChanges(status, round, players, isNewRound);
+            // Process round data
+            GameRound round = null;
+            if (roundData != null) {
+                round = new GameRound();
+                round.setRoundNumber(((Number) roundData.get("roundNumber")).intValue());
+                round.setStartTime(((Number) roundData.get("startTime")).longValue());
+                round.setEndTime(((Number) roundData.get("endTime")).longValue());
 
-        // Check if round is complete
-        if (currentGame.isRoundComplete() && "active".equals(status)) {
-            endCurrentRound();
+                // Handle submitted words
+                Map<String, String> submittedWords = (Map<String, String>) roundData.get("submittedWords");
+                if (submittedWords != null) {
+                    round.setSubmittedWords(submittedWords);
+                }
+
+                // Handle word list for classic mode
+                List<String> words = (List<String>) roundData.get("words");
+                if (words != null) {
+                    round.setWords(words);
+                }
+            }
+
+            boolean isNewRound = false;
+            if (round != null && (currentGame.getCurrentRound() == null ||
+                    currentGame.getCurrentRound().getRoundNumber() != round.getRoundNumber())) {
+                isNewRound = true;
+            }
+
+            currentGame.setCurrentRound(round);
+            currentGame.setStatus(status);
+
+            // Initialize game mode if needed
+            if (currentGame.getGameMode() == null) {
+                currentGame.initializeGameMode();
+            }
+
+            // Notify listeners
+            notifyStateChanges(status, round, playerList, isNewRound);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            if (updateListener != null) {
+                updateListener.onError("Error processing game update: " + e.getMessage());
+            }
         }
     }
 
@@ -147,11 +186,17 @@ public class GameController {
             updateListener.onGameStateChanged(currentGame);
 
             if (isNewRound && "active".equals(status)) {
-                updateListener.onRoundStart(round);
+                if (round != null && !processedRounds.contains("start_" + round.getRoundNumber())) {
+                    processedRounds.add("start_" + round.getRoundNumber());
+                    updateListener.onRoundStart(round);
+                }
             } else if ("roundEnd".equals(status) && !isProcessingRoundEnd) {
-                isProcessingRoundEnd = true;
-                updateListener.onRoundEnd(round);
-                new Handler().postDelayed(() -> isProcessingRoundEnd = false, 3000);
+                if (round != null && !processedRounds.contains("end_" + round.getRoundNumber())) {
+                    processedRounds.add("end_" + round.getRoundNumber());
+                    isProcessingRoundEnd = true;
+                    updateListener.onRoundEnd(round);
+                    new Handler().postDelayed(() -> isProcessingRoundEnd = false, 3000);
+                }
             } else if ("gameEnd".equals(status)) {
                 Player winner = currentGame.getWinner();
                 updateListener.onGameEnd(winner);
@@ -286,6 +331,11 @@ public class GameController {
     }
 
     private void endCurrentRound() {
+        if (currentGame == null || currentGame.getCurrentRound() == null ||
+                processedRounds.contains("end_" + currentGame.getCurrentRound().getRoundNumber())) {
+            return; // Don't end the round if it's already been processed
+        }
+
         firebaseController.endCurrentRound(gameId, new FirebaseController.FirebaseCallback() {
             @Override
             public void onSuccess(Object result) {

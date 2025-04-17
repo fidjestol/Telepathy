@@ -1,5 +1,6 @@
 package com.example.telepathy.controller;
 
+import android.util.Log;
 import androidx.annotation.NonNull;
 
 import com.example.telepathy.model.User;
@@ -279,28 +280,34 @@ public class FirebaseController {
     }
 
     public void startGame(String lobbyId, FirebaseCallback callback) {
+        Log.d("Telepathy", "Starting game creation for lobby: " + lobbyId);
         // Get lobby data first
         database.child("lobbies").child(lobbyId).get().addOnCompleteListener(task -> {
             if (!task.isSuccessful() || task.getResult() == null || !task.getResult().exists()) {
+                Log.e("Telepathy", "Lobby not found: " + lobbyId);
                 callback.onFailure("Lobby not found");
                 return;
             }
 
             Map<String, Object> lobbyData = (Map<String, Object>) task.getResult().getValue();
             if (lobbyData == null) {
+                Log.e("Telepathy", "Invalid lobby data for: " + lobbyId);
                 callback.onFailure("Invalid lobby data");
                 return;
             }
 
+            Log.d("Telepathy", "Got lobby data, processing players...");
             // Get players
             Object playersObj = lobbyData.get("players");
             Map<String, Object> playersMap = new HashMap<>();
 
             if (playersObj instanceof Map) {
                 playersMap = (Map<String, Object>) playersObj;
+                Log.d("Telepathy", "Found " + playersMap.size() + " players in map format");
             } else if (playersObj instanceof List) {
                 // Convert List to Map if needed
                 List<Object> playersList = (List<Object>) playersObj;
+                Log.d("Telepathy", "Found " + playersList.size() + " players in list format");
                 for (int i = 0; i < playersList.size(); i++) {
                     Object player = playersList.get(i);
                     if (player instanceof Map) {
@@ -314,6 +321,8 @@ public class FirebaseController {
                     }
                 }
             } else {
+                Log.e("Telepathy", "Invalid players data format: "
+                        + (playersObj != null ? playersObj.getClass().getName() : "null"));
                 callback.onFailure("Invalid players data format");
                 return;
             }
@@ -323,8 +332,10 @@ public class FirebaseController {
             Map<String, Object> configData;
             if (configObj instanceof Map) {
                 configData = (Map<String, Object>) configObj;
+                Log.d("Telepathy", "Using custom game config");
             } else {
                 // Use default config
+                Log.d("Telepathy", "Using default game config");
                 configData = new HashMap<>();
                 configData.put("timeLimit", 30);
                 configData.put("maxPlayers", 8);
@@ -336,13 +347,16 @@ public class FirebaseController {
             // Validate player count based on game mode
             String gameMode = (String) configData.getOrDefault("gameMode", "Classic");
             int maxPlayers = gameMode.equalsIgnoreCase("Matching") ? 2 : 8;
+            Log.d("Telepathy", "Game mode: " + gameMode + ", Players: " + playersMap.size() + "/" + maxPlayers);
 
-            if (gameMode.equalsIgnoreCase("Matching") && playersMap.size() != 2) {
-                callback.onFailure("Matching mode requires exactly 2 players");
-                return;
-            }
-
-            if (playersMap.size() < 1 || playersMap.size() > maxPlayers) {
+            if (gameMode.equalsIgnoreCase("Matching")) {
+                if (playersMap.size() != 2) {
+                    Log.e("Telepathy", "Invalid player count for Matching mode: " + playersMap.size());
+                    callback.onFailure("Matching mode requires exactly 2 players");
+                    return;
+                }
+            } else if (playersMap.size() < 1 || playersMap.size() > maxPlayers) {
+                Log.e("Telepathy", "Invalid player count for " + gameMode + " mode: " + playersMap.size());
                 callback.onFailure("Invalid number of players for " + gameMode + " mode");
                 return;
             }
@@ -350,22 +364,52 @@ public class FirebaseController {
             // Create game ID
             String gameId = database.child("games").push().getKey();
             if (gameId == null) {
+                Log.e("Telepathy", "Failed to generate game ID");
                 callback.onFailure("Failed to generate game ID");
                 return;
             }
+            Log.d("Telepathy", "Generated new game ID: " + gameId);
 
             // Create game data
             Map<String, Object> gameData = new HashMap<>();
-            gameData.put("lobbyId", lobbyId);
-            gameData.put("players", playersMap);
+            gameData.put("id", gameId);
             gameData.put("config", configData);
             gameData.put("status", "active");
 
-            // Create first round
+            // Initialize players with correct lives from config
+            Map<String, Object> playersData = new HashMap<>();
+            int livesPerPlayer = ((Number) configData.getOrDefault("livesPerPlayer", 3)).intValue();
+
+            for (Map.Entry<String, Object> entry : playersMap.entrySet()) {
+                Map<String, Object> playerData = (Map<String, Object>) entry.getValue();
+                playerData.put("lives", livesPerPlayer);
+                playerData.put("score", 0);
+                playerData.put("eliminated", false);
+                playerData.put("currentWord", "");
+                playersData.put(entry.getKey(), playerData);
+            }
+            gameData.put("players", playersData);
+
+            // Create initial round data
             Map<String, Object> roundData = new HashMap<>();
             roundData.put("roundNumber", 1);
             roundData.put("startTime", System.currentTimeMillis());
-            roundData.put("timeLimit", configData.get("timeLimit"));
+            roundData.put("endTime",
+                    System.currentTimeMillis() + ((Number) configData.get("timeLimit")).intValue() * 1000);
+            roundData.put("playerWords", new HashMap<>());
+
+            // Initialize game mode specific data
+            if (gameMode.equalsIgnoreCase("matching")) {
+                // For matching mode, we don't need any word lists or validation
+                // We just need to track the words players submit and check if they match
+                roundData.put("playerWords", new HashMap<String, String>());
+            } else {
+                // For classic mode, get words from the selected category
+                String category = (String) configData.getOrDefault("selectedCategory", "Animals");
+                List<String> wordList = WordSelection.getRandomWords(category, 20);
+                roundData.put("words", wordList);
+            }
+
             gameData.put("currentRound", roundData);
 
             // Close the lobby
@@ -378,10 +422,15 @@ public class FirebaseController {
             updates.put("/games/" + gameId, gameData);
             updates.put("/lobbies/" + lobbyId, lobbyUpdates);
 
+            Log.d("Telepathy", "Attempting to create game in Firebase...");
             database.updateChildren(updates).addOnCompleteListener(updateTask -> {
                 if (updateTask.isSuccessful()) {
+                    Log.d("Telepathy", "Game created successfully with ID: " + gameId);
                     callback.onSuccess(gameId);
                 } else {
+                    Log.e("Telepathy", "Failed to create game: " +
+                            (updateTask.getException() != null ? updateTask.getException().getMessage()
+                                    : "unknown error"));
                     callback.onFailure("Failed to start game: " +
                             (updateTask.getException() != null ? updateTask.getException().getMessage()
                                     : "unknown error"));
@@ -413,95 +462,89 @@ public class FirebaseController {
                                 return;
                             }
 
-                            // First, get all the players
+                            Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
+                            String gameMode = (String) configData.getOrDefault("gameMode", "Classic");
+
+                            // Get all the players
                             Map<String, Object> playersData = (Map<String, Object>) gameData.get("players");
-
-                            // Keep track of updates to make
                             Map<String, Object> updates = new HashMap<>();
-                            // Use an array to track active players (can be modified inside the lambda)
-                            final int[] activePlayerCount = { 0 };
 
-                            // Process each player
-                            if (playersData != null) {
+                            if (gameMode.equalsIgnoreCase("matching")) {
+                                // For matching mode, check if both players submitted the same word
+                                Map<String, String> submittedWords = new HashMap<>();
+
+                                // Collect all submitted words with player IDs
+                                for (Map.Entry<String, Object> entry : playersData.entrySet()) {
+                                    String playerId = entry.getKey();
+                                    Map<String, Object> playerData = (Map<String, Object>) entry.getValue();
+                                    String currentWord = (String) playerData.get("currentWord");
+                                    if (currentWord != null && !currentWord.trim().isEmpty()) {
+                                        submittedWords.put(playerId, currentWord.toLowerCase().trim());
+                                    }
+                                }
+
+                                // Store the words in the round data for display
+                                Map<String, Object> roundData = new HashMap<>();
+                                roundData.put("submittedWords", submittedWords);
+                                updates.put("currentRound/submittedWords", submittedWords);
+
+                                // If both players submitted the same word, end the game
+                                if (submittedWords.size() == 2) {
+                                    String[] words = submittedWords.values().toArray(new String[0]);
+                                    if (words[0].equals(words[1])) {
+                                        updates.put("status", "gameEnd");
+                                    } else {
+                                        // Continue to next round
+                                        updates.put("status", "roundEnd");
+                                        updates.put("nextRoundStartTime", System.currentTimeMillis() + 5000);
+                                    }
+                                }
+                            } else {
+                                // Classic mode logic
+                                final int[] activePlayerCount = { 0 };
+
                                 for (Map.Entry<String, Object> entry : playersData.entrySet()) {
                                     String playerId = entry.getKey();
                                     Map<String, Object> playerData = (Map<String, Object>) entry.getValue();
 
-                                    // Check if player is eliminated
-                                    Object eliminatedObj = playerData.get("eliminated");
-                                    boolean isEliminated = (eliminatedObj instanceof Boolean
-                                            && (Boolean) eliminatedObj);
+                                    boolean isEliminated = (boolean) playerData.getOrDefault("eliminated", false);
 
                                     if (!isEliminated) {
-                                        // Check if player submitted a word
-                                        Object currentWordObj = playerData.get("currentWord");
-                                        String currentWord = (currentWordObj instanceof String)
-                                                ? (String) currentWordObj
-                                                : "";
-
+                                        String currentWord = (String) playerData.get("currentWord");
                                         if (currentWord == null || currentWord.isEmpty()) {
-                                            // Player didn't submit - penalize them
-                                            int currentLives = 3; // Default
-                                            Object livesObj = playerData.get("lives");
-
-                                            if (livesObj instanceof Long) {
-                                                currentLives = ((Long) livesObj).intValue();
-                                            } else if (livesObj instanceof Integer) {
-                                                currentLives = (Integer) livesObj;
-                                            }
-
-                                            // Reduce lives by 1
+                                            int currentLives = ((Number) playerData.get("lives")).intValue();
                                             int newLives = Math.max(0, currentLives - 1);
-
-                                            // Add to update batch
                                             updates.put("players/" + playerId + "/lives", newLives);
 
-                                            // If player is eliminated, mark them
                                             if (newLives <= 0) {
                                                 updates.put("players/" + playerId + "/eliminated", true);
                                             } else {
-                                                activePlayerCount[0]++; // Increment using array
+                                                activePlayerCount[0]++;
                                             }
                                         } else {
-                                            // Player submitted a word, count them as active
-                                            activePlayerCount[0]++; // Increment using array
+                                            activePlayerCount[0]++;
                                         }
                                     }
                                 }
+
+                                if (activePlayerCount[0] <= 1) {
+                                    updates.put("status", "gameEnd");
+                                } else {
+                                    updates.put("status", "roundEnd");
+                                    updates.put("nextRoundStartTime", System.currentTimeMillis() + 5000);
+                                }
                             }
 
-                            // Update game status
-                            updates.put("status", "roundEnd");
-
-                            // Get the final active player count from the array
-                            final int remainingPlayers = activePlayerCount[0];
-
-                            // Apply all updates in a single batch
+                            // Apply all updates
                             database.child("games").child(gameId).updateChildren(updates)
                                     .addOnCompleteListener(task -> {
                                         if (task.isSuccessful()) {
-                                            System.out.println("TELEPATHY: Round ended with " + remainingPlayers
-                                                    + " active players");
-
-                                            // Add logic to handle game end or schedule next round
-                                            if (remainingPlayers <= 1) {
-                                                // Game over - one or zero players left
-                                                database.child("games").child(gameId).child("status")
-                                                        .setValue("gameEnd");
-                                            } else {
-                                                // Schedule next round
-                                                Map<String, Object> roundUpdates = new HashMap<>();
-                                                roundUpdates.put("nextRoundStartTime",
-                                                        System.currentTimeMillis() + 5000);
-                                                roundUpdates.put("roundStarterId", UUID.randomUUID().toString());
-                                                database.child("games").child(gameId).updateChildren(roundUpdates);
-                                            }
-
                                             callback.onSuccess(null);
                                         } else {
                                             callback.onFailure("Failed to update game status");
                                         }
                                     });
+
                         } catch (Exception e) {
                             e.printStackTrace();
                             callback.onFailure("Error processing round end: " + e.getMessage());
@@ -579,12 +622,18 @@ public class FirebaseController {
                             int nextRoundNumber = currentRoundNumber + 1;
                             System.out.println("TELEPATHY: Next round number will be: " + nextRoundNumber);
 
-                            // Get game config for category
+                            // Get game config for category and mode
                             Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
                             String category = "Animals"; // Default
+                            String gameMode = "classic"; // Default
 
-                            if (configData != null && configData.containsKey("selectedCategory")) {
-                                category = (String) configData.get("selectedCategory");
+                            if (configData != null) {
+                                if (configData.containsKey("selectedCategory")) {
+                                    category = (String) configData.get("selectedCategory");
+                                }
+                                if (configData.containsKey("gameMode")) {
+                                    gameMode = ((String) configData.get("gameMode")).toLowerCase();
+                                }
                             }
 
                             // Create new round data
@@ -607,12 +656,17 @@ public class FirebaseController {
 
                             newRoundData.put("endTime", System.currentTimeMillis() + (timeLimit * 1000));
 
-                            // Get new words for this round - IMPORTANT: Generate brand new list
-                            List<String> words = WordSelection.getRandomWords(category, 20);
-                            newRoundData.put("words", words);
-
-                            System.out.println(
-                                    "TELEPATHY: Generated " + words.size() + " new words for round " + nextRoundNumber);
+                            // Initialize word list based on game mode
+                            if (gameMode.equalsIgnoreCase("matching")) {
+                                // For matching mode, we don't need a word list
+                                newRoundData.put("words", new ArrayList<>());
+                                newRoundData.put("requiresWordValidation", false);
+                            } else {
+                                // For classic mode, get words from the selected category
+                                List<String> words = WordSelection.getRandomWords(category, 20);
+                                newRoundData.put("words", words);
+                                newRoundData.put("requiresWordValidation", true);
+                            }
 
                             // Create combined update map
                             Map<String, Object> updates = new HashMap<>();

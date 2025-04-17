@@ -23,7 +23,7 @@ public class GameConfig {
         this.categories.add("Foods");
         this.categories.add("Sports");
         this.selectedCategory = "Animals";
-        this.gameMode = "Classic"; // Default game mode
+        this.gameMode = "classic"; // Default game mode in lowercase
     }
 
     // Constructor with custom parameters

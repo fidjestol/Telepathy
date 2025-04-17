@@ -1,6 +1,7 @@
 package com.example.telepathy.model.gamemode;
 
 import com.example.telepathy.model.GameConfig;
+import com.example.telepathy.model.GameRound;
 import com.example.telepathy.model.Player;
 import java.util.List;
 
@@ -45,4 +46,7 @@ public interface GameMode {
     GameConfig getGameConfig();
 
     String getGameModeType(); // To identify different game modes
+
+    // Round Management
+    void setCurrentRound(GameRound round);
 }
