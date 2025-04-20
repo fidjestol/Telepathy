@@ -49,6 +49,25 @@ public class WordSelection {
     }
 
     /**
+     * Get the entire list of words for the specified category
+     * @param category The category to get words from
+     * @return List of all words in the category
+     */
+    public static List<String> getAllWordsForCategory(String category) {
+        List<String> wordList = categoryWords.get(category);
+
+        if (wordList == null) {
+            // Default to Animals if category not found
+            wordList = categoryWords.get("Animals");
+            System.out.println("TELEPATHY: Category not found, defaulting to Animals");
+        }
+
+        // Return the entire category list
+        System.out.println("TELEPATHY: Returning " + wordList.size() + " words for category: " + category);
+        return new ArrayList<>(wordList);
+    }
+
+    /**
      * Get a list of random words from the specified category
      * @param category The category to select words from
      * @param count The number of words to select
@@ -60,6 +79,7 @@ public class WordSelection {
         if (wordList == null) {
             // Default to Animals if category not found
             wordList = categoryWords.get("Animals");
+            System.out.println("TELEPATHY: Category not found, defaulting to Animals");
         }
 
         // Create a copy of the word list
@@ -72,6 +92,7 @@ public class WordSelection {
             selectedWords.add(availableWords.remove(index));
         }
 
+        System.out.println("TELEPATHY: Selected " + selectedWords.size() + " random words for category: " + category);
         return selectedWords;
     }
 

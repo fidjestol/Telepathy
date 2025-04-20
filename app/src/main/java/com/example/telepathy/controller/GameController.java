@@ -94,6 +94,17 @@ public class GameController {
             List<Player> players = extractPlayers(gameData);
             GameRound round = extractRoundData(gameData);
 
+            // Log available words for debugging
+            if (round != null && round.getWords() != null) {
+                System.out.println("TELEPATHY: Round " + round.getRoundNumber() +
+                        " has " + round.getWords().size() + " words available");
+                // Log a sample of the words (first 5)
+                List<String> sampleWords = round.getWords().subList(0,
+                        Math.min(5, round.getWords().size()));
+                System.out.println("TELEPATHY: Sample words: " + String.join(", ", sampleWords) +
+                        (round.getWords().size() > 5 ? "..." : ""));
+            }
+
             // Generate a unique ID for this round's state to prevent duplicate processing
             String roundId = "";
             if (round != null) {
@@ -611,6 +622,7 @@ public class GameController {
             @Override
             public void onSuccess(Object result) {
                 // Word submitted successfully
+                System.out.println("TELEPATHY: Word successfully submitted: " + word);
             }
 
             @Override
@@ -623,7 +635,6 @@ public class GameController {
     }
 
     public void validateWord(String word) {
-        // Simple word validation
         if (word == null || word.trim().isEmpty()) {
             if (updateListener != null) {
                 updateListener.onError("Word cannot be empty");
@@ -631,19 +642,43 @@ public class GameController {
             return;
         }
 
+        // Normalize the word
+        String normalizedWord = word.trim().toLowerCase();
+
         // Check if word is in the current round's word list
         if (currentGame != null && currentGame.getCurrentRound() != null) {
             List<String> validWords = currentGame.getCurrentRound().getWords();
-            if (validWords != null && !validWords.contains(word.trim().toLowerCase())) {
+
+            if (validWords != null) {
+                // Check if word has already been used by this player in previous rounds
+                if (currentGame.isWordAlreadyUsed(normalizedWord)) {
+                    if (updateListener != null) {
+                        updateListener.onError("You've already used this word in a previous round!");
+                    }
+                    return;
+                }
+
+                // Check if word is in valid words list
+                if (!validWords.contains(normalizedWord)) {
+                    if (updateListener != null) {
+                        updateListener.onError("Word is not in the valid word list for this round");
+                    }
+                    return;
+                }
+            } else {
                 if (updateListener != null) {
-                    updateListener.onError("Word is not in the valid word list");
+                    updateListener.onError("No valid words available");
                 }
                 return;
             }
         }
 
-        // If validation passes, submit the word
-        submitWord(word.trim().toLowerCase());
+        // If validation passes, submit the word and add to used words
+        submitWord(normalizedWord);
+        if (currentGame != null) {
+            currentGame.addUsedWord(normalizedWord);
+            System.out.println("TELEPATHY: Player submitted word: " + normalizedWord);
+        }
     }
 
     public void cleanup() {
@@ -656,5 +691,51 @@ public class GameController {
             roundStartHandler.removeCallbacks(roundStartRunnable);
             roundStartRunnable = null;
         }
+    }
+
+    public interface ValidationCallback {
+        void onSuccess();
+        void onError(String errorMessage);
+    }
+
+    public void validateWord(String word, ValidationCallback callback) {
+        if (word == null || word.trim().isEmpty()) {
+            callback.onError("Word cannot be empty");
+            return;
+        }
+
+        // Normalize the word
+        String normalizedWord = word.trim().toLowerCase();
+
+        // Check if word is in the current round's word list
+        if (currentGame != null && currentGame.getCurrentRound() != null) {
+            List<String> validWords = currentGame.getCurrentRound().getWords();
+
+            if (validWords != null) {
+                // Check if word has already been used by ANY player in any round
+                if (currentGame.isWordAlreadyUsed(normalizedWord)) {
+                    callback.onError("This word has already been used in a previous round!");
+                    return;
+                }
+
+                // Check if word is in valid words list
+                if (!validWords.contains(normalizedWord)) {
+                    callback.onError("Word is not in the valid word list for this round");
+                    return;
+                }
+            } else {
+                callback.onError("No valid words available");
+                return;
+            }
+        }
+
+        // If validation passes, submit the word and add to used words
+        submitWord(normalizedWord);
+        if (currentGame != null) {
+            currentGame.addUsedWord(normalizedWord);
+            System.out.println("TELEPATHY: Player submitted word: " + normalizedWord);
+        }
+
+        callback.onSuccess();
     }
 }

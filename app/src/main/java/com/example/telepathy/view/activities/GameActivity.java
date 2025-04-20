@@ -28,7 +28,6 @@ import com.example.telepathy.model.GameRound;
 import com.example.telepathy.model.Player;
 import com.example.telepathy.view.adapters.PlayerListAdapter;
 import com.example.telepathy.view.adapters.WordHistoryAdapter;
-import com.example.telepathy.view.adapters.WordListAdapter;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,7 +41,6 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     private TextView roundTextView;
     private TextView livesTextView;
     private RecyclerView playersRecyclerView;
-    private RecyclerView wordsRecyclerView;
     private EditText wordInputEditText;
     private Button submitButton;
     private View gameControlsLayout;
@@ -54,14 +52,13 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     private List<String> usedWords = new ArrayList<>(); // To store words that have been used
 
     private PlayerListAdapter playerListAdapter;
-    private WordListAdapter wordListAdapter;
     private GameController gameController;
 
     private String lobbyId;
     private String gameId;
     private String playerId;
     private List<Player> players = new ArrayList<>();
-    private List<String> validWords = new ArrayList<>();
+    private List<String> validWords = new ArrayList<>(); // We'll still keep track of valid words in code even though we don't display them
 
     private boolean isHost;
 
@@ -90,22 +87,18 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         roundTextView = findViewById(R.id.roundTextView);
         livesTextView = findViewById(R.id.livesTextView);
         playersRecyclerView = findViewById(R.id.playersRecyclerView);
-        wordsRecyclerView = findViewById(R.id.wordsRecyclerView);
         wordInputEditText = findViewById(R.id.wordInputEditText);
         submitButton = findViewById(R.id.submitButton);
         gameControlsLayout = findViewById(R.id.gameControlsLayout);
         waitingLayout = findViewById(R.id.waitingLayout);
         progressBar = findViewById(R.id.progressBar);
 
-        // Set up RecyclerViews
+        // Set up player RecyclerView
         playersRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         playerListAdapter = new PlayerListAdapter(players);
         playersRecyclerView.setAdapter(playerListAdapter);
 
-        wordsRecyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
-        wordListAdapter = new WordListAdapter(validWords);
-        wordsRecyclerView.setAdapter(wordListAdapter);
-
+        // Set up word history RecyclerView
         wordHistoryRecyclerView = findViewById(R.id.wordHistoryRecyclerView);
         wordHistoryRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         wordHistoryAdapter = new WordHistoryAdapter();
@@ -186,37 +179,43 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             return;
         }
 
-        // Check if word is in the valid words list
-        boolean isValidWord = false;
-        for (String validWord : validWords) {
-            if (validWord.equalsIgnoreCase(word)) {
-                isValidWord = true;
-                break;
-            }
-        }
-
-        if (!isValidWord) {
-            Toast.makeText(this, "Word is not in the valid words list", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // Validate and submit word
-        gameController.validateWord(word);
-
-        // Disable input after submission until next round
+        // Temporarily disable input while validating
         wordInputEditText.setEnabled(false);
         submitButton.setEnabled(false);
 
-        // Add word to history
-        wordHistoryAdapter.addWord(word);
+        // Create a local reference to re-enable input on error
+        final Runnable enableInput = () -> {
+            wordInputEditText.setEnabled(true);
+            submitButton.setEnabled(true);
+            wordInputEditText.setText(""); // Clear text
+            wordInputEditText.requestFocus();
+        };
 
-        // Show feedback
-        Toast.makeText(this, "Word submitted! Waiting for other players...", Toast.LENGTH_SHORT).show();
+        // Let the GameController handle validation and submission
+        try {
+            gameController.validateWord(word, new GameController.ValidationCallback() {
+                @Override
+                public void onSuccess() {
+                    // Word was valid and submitted successfully
+                    Toast.makeText(GameActivity.this, "Word submitted! Waiting for other players...", Toast.LENGTH_SHORT).show();
+                    wordHistoryAdapter.addWord(word);
+                }
 
-        // Clear input field
-        wordInputEditText.setText("");
+                @Override
+                public void onError(String errorMessage) {
+                    // Re-enable input on validation error
+                    runOnUiThread(() -> {
+                        Toast.makeText(GameActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+                        enableInput.run();
+                    });
+                }
+            });
+        } catch (Exception e) {
+            // Safety catch - ensure UI doesn't get stuck
+            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            enableInput.run();
+        }
     }
-
     private void startTimer(long durationMillis) {
         // Cancel any existing timer
         if (countDownTimer != null) {
@@ -266,12 +265,21 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             players.addAll(game.getPlayers());
             playerListAdapter.notifyDataSetChanged();
 
-            // Update current player lives
+            // Update current player stats (lives and score)
             for (Player player : players) {
                 if (player.getId().equals(playerId)) {
                     livesTextView.setText(getString(R.string.lives_left, player.getLives()));
+
+                    // Add this for score display
+                    updateScoreDisplay();
                     break;
                 }
+            }
+
+            // Log used words for debugging
+            if (game.getUsedWords() != null && !game.getUsedWords().isEmpty()) {
+                System.out.println("TELEPATHY: Used words in game so far: " +
+                        String.join(", ", game.getUsedWords()));
             }
         });
     }
@@ -282,12 +290,15 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         runOnUiThread(() -> {
             roundTextView.setText(getString(R.string.round_number, round.getRoundNumber()));
 
-            // Update available words for this round but hide them from player
+            // Update available words for this round
             validWords.clear();
             validWords.addAll(round.getWords());
 
-            // Hide available words
-            wordsRecyclerView.setVisibility(View.GONE);
+            // Log available words for debugging
+            System.out.println("TELEPATHY: Available words for round " + round.getRoundNumber() +
+                    ": " + String.join(", ", round.getWords().subList(0, Math.min(5, round.getWords().size()))) +
+                    "... (" + round.getWords().size() + " total words)");
+
 
             // Add a system message for new round
             wordHistoryAdapter.addSystemMessage("Round " + round.getRoundNumber() + " started");
@@ -352,9 +363,6 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
 
             // Start countdown for next round (visible to all players)
             startNextRoundCountdown();
-
-            // No need to check for host - only the host should trigger the next round from Firebase
-            // The Firebase listener in all clients will receive the update and start the round
         });
     }
 
@@ -422,6 +430,23 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         });
     }
 
+    private void updateScoreDisplay() {
+        // Find the current player and show their score
+        for (Player player : players) {
+            if (player.getId().equals(playerId)) {
+                // You may want to add a TextView for score if you don't have one yet
+                TextView scoreTextView = findViewById(R.id.scoreTextView);
+                if (scoreTextView != null) {
+                    scoreTextView.setText(getString(R.string.player_score, player.getScore()));
+                }
+
+                // You could also update the title bar with score info
+                getSupportActionBar().setSubtitle("Score: " + player.getScore());
+                break;
+            }
+        }
+    }
+
     @Override
     public void onGameEnd(Player winner) {
         runOnUiThread(() -> {
@@ -440,6 +465,14 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         runOnUiThread(() -> {
             // Show error message in UI
             Toast.makeText(this, error, Toast.LENGTH_LONG).show();
+
+            // Re-enable input fields if it was a validation error
+            if (error.contains("already been used") || error.contains("not in the valid word")) {
+                wordInputEditText.setEnabled(true);
+                submitButton.setEnabled(true);
+                wordInputEditText.setText(""); // Clear the input field
+                wordInputEditText.requestFocus(); // Give focus back to input field
+            }
 
             // Log the error to help debugging
             Log.e("TELEPATHY_ERROR", error);
@@ -467,8 +500,6 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         });
         builder.show();
     }
-
-// In GameActivity.java - replace the showGameEndDialog method with this:
 
     private void showGameEndDialog(Player winner) {
         // Stop any active timers
@@ -539,6 +570,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             finish();
         });
     }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();

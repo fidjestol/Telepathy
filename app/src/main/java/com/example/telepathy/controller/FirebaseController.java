@@ -388,9 +388,10 @@ public class FirebaseController {
                                 category = (String) categoryObj;
                             }
 
-                            // Get words for the round
-                            List<String> words = WordSelection.getRandomWords(category, 20);
+                            // Get ALL words for the round (not just random subset)
+                            List<String> words = WordSelection.getAllWordsForCategory(category);
                             roundData.put("words", words);
+                            System.out.println("TELEPATHY: Added " + words.size() + " words for category: " + category);
 
                             gameData.put("currentRound", roundData);
 
@@ -459,7 +460,37 @@ public class FirebaseController {
                             // Use an array to track active players (can be modified inside the lambda)
                             final int[] activePlayerCount = {0};
 
-                            // Process each player
+                            // Track word frequencies to identify unique words
+                            Map<String, List<String>> wordToPlayers = new HashMap<>();
+
+                            // Process each player to count word frequencies
+                            if (playersData != null) {
+                                for (Map.Entry<String, Object> entry : playersData.entrySet()) {
+                                    String playerId = entry.getKey();
+                                    Map<String, Object> playerData = (Map<String, Object>) entry.getValue();
+
+                                    // Skip eliminated players
+                                    Object eliminatedObj = playerData.get("eliminated");
+                                    boolean isEliminated = (eliminatedObj instanceof Boolean && (Boolean) eliminatedObj);
+                                    if (isEliminated) continue;
+
+                                    // Count active players and track their words
+                                    activePlayerCount[0]++;
+
+                                    // Track word frequencies
+                                    Object currentWordObj = playerData.get("currentWord");
+                                    String currentWord = (currentWordObj instanceof String) ? (String) currentWordObj : "";
+
+                                    if (currentWord != null && !currentWord.isEmpty()) {
+                                        if (!wordToPlayers.containsKey(currentWord)) {
+                                            wordToPlayers.put(currentWord, new ArrayList<>());
+                                        }
+                                        wordToPlayers.get(currentWord).add(playerId);
+                                    }
+                                }
+                            }
+
+                            // Process each player again to apply score updates and penalties
                             if (playersData != null) {
                                 for (Map.Entry<String, Object> entry : playersData.entrySet()) {
                                     String playerId = entry.getKey();
@@ -495,11 +526,27 @@ public class FirebaseController {
                                             if (newLives <= 0) {
                                                 updates.put("players/" + playerId + "/eliminated", true);
                                             } else {
-                                                activePlayerCount[0]++; // Increment using array
                                             }
                                         } else {
-                                            // Player submitted a word, count them as active
-                                            activePlayerCount[0]++; // Increment using array
+                                            // Check if this word is unique (only submitted by this player)
+                                            List<String> playersWithSameWord = wordToPlayers.get(currentWord);
+                                            if (playersWithSameWord != null && playersWithSameWord.size() == 1) {
+                                                // Word is unique! Award points to this player
+                                                int currentScore = 0;
+                                                Object scoreObj = playerData.get("score");
+                                                if (scoreObj instanceof Long) {
+                                                    currentScore = ((Long) scoreObj).intValue();
+                                                } else if (scoreObj instanceof Integer) {
+                                                    currentScore = (Integer) scoreObj;
+                                                }
+
+                                                // Award 10 points for a unique word
+                                                int newScore = currentScore + 10;
+                                                updates.put("players/" + playerId + "/score", newScore);
+
+                                                System.out.println("TELEPATHY: Player " + playerId +
+                                                        " awarded 10 points for unique word: " + currentWord);
+                                            }
                                         }
                                     }
                                 }
@@ -542,8 +589,7 @@ public class FirebaseController {
                         callback.onFailure("Failed to get game data");
                     }
                 });
-    }
-    // Game methods
+    }    // Game methods
     public void submitWord(String gameId, String playerId, String word, FirebaseCallback callback) {
         database.child("games").child(gameId).child("players").child(playerId).child("currentWord")
                 .setValue(word)
@@ -636,11 +682,11 @@ public class FirebaseController {
 
                             newRoundData.put("endTime", System.currentTimeMillis() + (timeLimit * 1000));
 
-                            // Get new words for this round - IMPORTANT: Generate brand new list
-                            List<String> words = WordSelection.getRandomWords(category, 20);
+                            // Get ALL words for this round (not just random subset)
+                            List<String> words = WordSelection.getAllWordsForCategory(category);
                             newRoundData.put("words", words);
 
-                            System.out.println("TELEPATHY: Generated " + words.size() + " new words for round " + nextRoundNumber);
+                            System.out.println("TELEPATHY: Using " + words.size() + " words for round " + nextRoundNumber);
 
                             // Create combined update map
                             Map<String, Object> updates = new HashMap<>();
@@ -688,8 +734,9 @@ public class FirebaseController {
                         callback.onFailure("Failed to get game data");
                     }
                 });
-    }
-    public void removeGameListener(String gameId, ValueEventListener listener) {
+    }    public void removeGameListener(String gameId, ValueEventListener listener) {
         database.child("games").child(gameId).removeEventListener(listener);
     }
+
+
 }

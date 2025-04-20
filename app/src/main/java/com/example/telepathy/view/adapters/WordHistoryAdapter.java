@@ -18,10 +18,12 @@ import java.util.Set;
 public class WordHistoryAdapter extends RecyclerView.Adapter<WordHistoryAdapter.WordViewHolder> {
     private Set<String> uniqueWords; // LinkedHashSet maintains insertion order
     private List<String> displayWords; // Words to display
+    private List<String> systemMessages; // System messages
 
     public WordHistoryAdapter() {
         this.uniqueWords = new LinkedHashSet<>();
         this.displayWords = new ArrayList<>();
+        this.systemMessages = new ArrayList<>();
     }
 
     public void addWord(String word) {
@@ -31,24 +33,41 @@ public class WordHistoryAdapter extends RecyclerView.Adapter<WordHistoryAdapter.
             cleanWord = word.substring(word.indexOf(":") + 1).trim();
         }
 
-        // Only add if it's a new word
+        // Only add if it's a new word for display
         if (uniqueWords.add(cleanWord)) {
             // Add to the beginning of the display list
             displayWords.add(0, cleanWord);
             notifyItemInserted(0);
+
+            // Log for debugging
+            System.out.println("TELEPATHY: Added word to history: " + cleanWord);
+        } else {
+            System.out.println("TELEPATHY: Word already in history: " + cleanWord);
         }
     }
 
     public void addSystemMessage(String message) {
         // System messages are always added
         displayWords.add(0, "SYSTEM: " + message);
+        systemMessages.add(message); // Keep track of system messages separately
         notifyItemInserted(0);
+
+        System.out.println("TELEPATHY: Added system message: " + message);
     }
 
     public void clear() {
         uniqueWords.clear();
         displayWords.clear();
+        systemMessages.clear();
         notifyDataSetChanged();
+    }
+
+    public Set<String> getUniqueWords() {
+        return uniqueWords;
+    }
+
+    public List<String> getSystemMessages() {
+        return systemMessages;
     }
 
     @NonNull
