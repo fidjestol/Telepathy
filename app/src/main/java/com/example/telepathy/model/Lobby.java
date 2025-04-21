@@ -13,7 +13,6 @@ public class Lobby {
     private String hostId;
     private String gameId;
 
-
     // Default constructor for Firebase
     public Lobby() {
         // Required empty constructor for Firebase
@@ -118,6 +117,6 @@ public class Lobby {
     }
 
     public boolean canStartGame() {
-        return players.size() >= 1; // Need at least 2 players to start
+        return players.size() >= 2; // Need at least 2 players to start
     }
 }
