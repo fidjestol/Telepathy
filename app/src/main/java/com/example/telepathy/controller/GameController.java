@@ -94,17 +94,6 @@ public class GameController {
             List<Player> players = extractPlayers(gameData);
             GameRound round = extractRoundData(gameData);
 
-            // Log available words for debugging
-            if (round != null && round.getWords() != null) {
-                System.out.println("TELEPATHY: Round " + round.getRoundNumber() +
-                        " has " + round.getWords().size() + " words available");
-                // Log a sample of the words (first 5)
-                List<String> sampleWords = round.getWords().subList(0,
-                        Math.min(5, round.getWords().size()));
-                System.out.println("TELEPATHY: Sample words: " + String.join(", ", sampleWords) +
-                        (round.getWords().size() > 5 ? "..." : ""));
-            }
-
             // Generate a unique ID for this round's state to prevent duplicate processing
             String roundId = "";
             if (round != null) {
@@ -203,7 +192,11 @@ public class GameController {
 
         System.out.println("TELEPATHY: Found " + duplicates.size() + " duplicate words");
 
-        // For each duplicate word, identify players who need to lose a life
+        // IMPORTANT: Don't modify the database directly from here
+        // Instead, just update the UI to reflect the duplicate submissions
+        // The FirebaseController should handle the actual life reduction
+
+        // For each duplicate word, just log and track UI updates
         for (Map.Entry<String, List<String>> entry : duplicates.entrySet()) {
             String duplicateWord = entry.getKey();
             List<String> playerIds = entry.getValue();
@@ -211,100 +204,18 @@ public class GameController {
             System.out.println("TELEPATHY: Word '" + duplicateWord + "' was submitted by " +
                     playerIds.size() + " players: " + String.join(", ", playerIds));
 
-            // Process each player separately to avoid race conditions
-            for (String playerId : playerIds) {
-                // Skip if we've already processed this player for this round
-                if (processedPlayers.contains(playerId)) {
-                    System.out.println("TELEPATHY: Skipping already processed player: " + playerId);
-                    continue;
-                }
+            processedPlayers.addAll(playerIds);
+        }
 
-                // Mark this player as processed
-                processedPlayers.add(playerId);
+        // CRITICAL: Do not make any Firebase calls to update lives from here
+        // Just notify the UI components that need updating
 
-                // Get the latest player data from Firebase to ensure accurate lives count
-                database.child("games").child(gameId).child("players").child(playerId).get()
-                        .addOnCompleteListener(task -> {
-                            if (task.isSuccessful() && task.getResult() != null) {
-                                DataSnapshot playerSnapshot = task.getResult();
-                                if (!playerSnapshot.exists()) {
-                                    System.out.println("TELEPATHY: Player " + playerId + " no longer exists in the game");
-                                    return;
-                                }
-
-                                // Read current player data directly from Firebase
-                                Map<String, Object> playerData = (Map<String, Object>) playerSnapshot.getValue();
-                                if (playerData == null) {
-                                    System.out.println("TELEPATHY: Player data is null for " + playerId);
-                                    return;
-                                }
-
-                                // Get current lives value directly from the database
-                                Object livesObj = playerData.get("lives");
-                                int currentLives = 3; // Default if not found
-
-                                if (livesObj instanceof Long) {
-                                    currentLives = ((Long) livesObj).intValue();
-                                } else if (livesObj instanceof Integer) {
-                                    currentLives = (Integer) livesObj;
-                                } else if (livesObj instanceof Double) {
-                                    currentLives = ((Double) livesObj).intValue();
-                                }
-
-                                // Deduct exactly one life
-                                int newLives = Math.max(0, currentLives - 1);
-
-                                // Get username for logging
-                                String username = (String) playerData.get("username");
-
-                                System.out.println("TELEPATHY: Player " + username + " had " +
-                                        currentLives + " lives, reducing to " + newLives +
-                                        " for duplicate word: " + duplicateWord);
-
-                                // Create a dedicated update for just lives and eliminated status
-                                Map<String, Object> updates = new HashMap<>();
-                                updates.put("lives", newLives);
-
-                                // Only set eliminated if lives reach zero
-                                if (newLives <= 0) {
-                                    updates.put("eliminated", true);
-                                    System.out.println("TELEPATHY: Player " + username + " has been eliminated!");
-                                }
-
-                                // Update ONLY these specific fields in Firebase
-                                database.child("games").child(gameId).child("players").child(playerId)
-                                        .updateChildren(updates)
-                                        .addOnCompleteListener(updateTask -> {
-                                            if (updateTask.isSuccessful()) {
-                                                System.out.println("TELEPATHY: Successfully updated lives for " +
-                                                        username + " to " + newLives);
-
-                                                // Notify listeners if player was eliminated
-                                                if (newLives <= 0 && updateListener != null) {
-                                                    // Create a player object for the notification
-                                                    Player eliminatedPlayer = new Player();
-                                                    eliminatedPlayer.setId(playerId);
-                                                    eliminatedPlayer.setUsername(username);
-                                                    eliminatedPlayer.setLives(0);
-                                                    eliminatedPlayer.setEliminated(true);
-
-                                                    updateListener.onPlayerEliminated(eliminatedPlayer);
-                                                }
-                                            } else {
-                                                System.out.println("TELEPATHY: Failed to update lives for " +
-                                                        username + ": " +
-                                                        (updateTask.getException() != null ?
-                                                                updateTask.getException().getMessage() : "unknown error"));
-                                            }
-                                        });
-                            } else {
-                                System.out.println("TELEPATHY: Failed to get current player data for " + playerId);
-                            }
-                        });
-            }
+        // If we need to update the UI to show which players submitted duplicates,
+        // we can do that here, but without modifying the Firebase data
+        if (updateListener != null) {
+            updateListener.onGameStateChanged(currentGame);
         }
     }
-
     private boolean isWaitingForRoundStart(String roundStarterId) {
         return currentRoundStarterId != null && currentRoundStarterId.equals(roundStarterId);
     }
