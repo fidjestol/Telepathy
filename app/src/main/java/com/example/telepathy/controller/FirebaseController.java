@@ -276,6 +276,23 @@ public class FirebaseController {
                 });
     }
 
+    public void deleteLobby(String lobbyId, FirebaseCallback callback) {
+        if (lobbyId == null || lobbyId.isEmpty()) {
+            callback.onFailure("Lobby ID is invalid");
+            return;
+        }
+
+        database.child("lobbies").child(lobbyId).removeValue()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        callback.onSuccess(null);
+                    } else {
+                        callback.onFailure("Failed to delete lobby");
+                    }
+                });
+    }
+
+
     public void startGame(String lobbyId, FirebaseCallback callback) {
         database.child("lobbies").child(lobbyId).get()
                 .addOnCompleteListener(task -> {

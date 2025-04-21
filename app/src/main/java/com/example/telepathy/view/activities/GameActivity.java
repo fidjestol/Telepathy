@@ -25,6 +25,7 @@ import com.example.telepathy.controller.FirebaseController;
 import com.example.telepathy.controller.GameController;
 import com.example.telepathy.model.Game;
 import com.example.telepathy.model.GameRound;
+import com.example.telepathy.model.Lobby;
 import com.example.telepathy.model.Player;
 import com.example.telepathy.view.adapters.PlayerListAdapter;
 import com.example.telepathy.view.adapters.WordHistoryAdapter;
@@ -66,6 +67,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     private boolean isRoundActive = false;
 
     private FirebaseController firebaseController;
+    private AlertDialog dialog;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -258,7 +261,22 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     public void onGameStateChanged(Game game) {
         // Update UI with game state
         runOnUiThread(() -> {
-            lobbyNameTextView.setText(game.getLobbyId());
+            if (!"gameEnd".equals(game.getStatus())) {
+                firebaseController.getLobbyById(lobbyId, new FirebaseController.FirebaseCallback() {
+                    @Override
+                    public void onSuccess(Object result) {
+                        Lobby lobby = (Lobby) result;
+                        if (lobby != null) {
+                            runOnUiThread(() -> lobbyNameTextView.setText(lobby.getName()));
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        Log.e("GameActivity", "Failed to load lobby name: " + error);
+                    }
+                });
+            }
 
             // Update player list
             players.clear();
@@ -450,15 +468,28 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     @Override
     public void onGameEnd(Player winner) {
         runOnUiThread(() -> {
-            // Stop timer
-            if (countDownTimer != null) {
-                countDownTimer.cancel();
+            if (countDownTimer != null) countDownTimer.cancel();
+
+            Log.d("TELEPATHY", "Game ended. isHost=" + isHost + ", lobbyId=" + lobbyId);
+
+            if (isHost && lobbyId != null) {
+                firebaseController.deleteLobby(lobbyId, new FirebaseController.FirebaseCallback() {
+                    @Override
+                    public void onSuccess(Object result) {
+                        Log.d("TELEPATHY", "Lobby deleted successfully");
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        Log.e("TELEPATHY", "Failed to delete lobby: " + error);
+                    }
+                });
             }
 
-            // Show game end dialog
             showGameEndDialog(winner);
         });
     }
+
 
     @Override
     public void onError(String error) {
@@ -571,6 +602,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         });
     }
 
+
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -582,6 +615,10 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
 
         if (gameController != null) {
             gameController.cleanup();
+        }
+        // Dismiss any dialog if open
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
         }
     }
 }
