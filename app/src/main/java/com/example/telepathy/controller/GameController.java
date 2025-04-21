@@ -1,6 +1,7 @@
 package com.example.telepathy.controller;
 
 import android.os.Handler;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -45,10 +46,8 @@ public class GameController {
         void onError(String error);
     }
 
-
     private DatabaseReference database;
 
-    // Then update your constructor to initialize it:
     public GameController(String gameId, String playerId, GameUpdateListener listener) {
         this.gameId = gameId;
         this.currentPlayerId = playerId;
@@ -94,6 +93,17 @@ public class GameController {
             GameConfig config = extractGameConfig(gameData);
             List<Player> players = extractPlayers(gameData);
             GameRound round = extractRoundData(gameData);
+
+            // Log available words for debugging
+            if (round != null && round.getWords() != null) {
+                System.out.println("TELEPATHY: Round " + round.getRoundNumber() +
+                        " has " + round.getWords().size() + " words available");
+                // Log a sample of the words (first 5)
+                List<String> sampleWords = round.getWords().subList(0,
+                        Math.min(5, round.getWords().size()));
+                System.out.println("TELEPATHY: Sample words: " + String.join(", ", sampleWords) +
+                        (round.getWords().size() > 5 ? "..." : ""));
+            }
 
             // Generate a unique ID for this round's state to prevent duplicate processing
             String roundId = "";
@@ -141,8 +151,12 @@ public class GameController {
                 }
             }
 
-            // Check if all players have submitted words
-            boolean shouldEndRound = checkAllPlayersSubmitted(players) && "active".equals(status);
+            // Check if all players have submitted words - ADD DEBUGGING
+            boolean shouldEndRound = false;
+            if ("active".equals(status)) {
+                shouldEndRound = checkAllPlayersSubmitted(players);
+                System.out.println("TELEPATHY_DEBUG: All players submitted: " + shouldEndRound);
+            }
 
             // Check if this is a new round
             boolean isNewRound = isNewRound(round);
@@ -154,6 +168,7 @@ public class GameController {
             if (isNewRound && "active".equals(status)) {
                 // Only keep the current round ID in the set
                 processedRounds.clear();
+                processedPlayers.clear(); // Also clear processed players set
             }
 
             // Notify listeners of state changes
@@ -161,17 +176,21 @@ public class GameController {
 
             // End round if everyone has submitted
             if (shouldEndRound) {
+                System.out.println("TELEPATHY: All players have submitted words, ending round");
                 endCurrentRound();
             }
         } catch (Exception e) {
+            System.out.println("TELEPATHY_ERROR: " + e.getMessage());
+            e.printStackTrace();
             if (updateListener != null) {
                 updateListener.onError("Error processing game update: " + e.getMessage());
             }
         }
     }
+
     // Process duplicate words and update Firebase
     private void processDuplicateWords(List<Player> players, GameRound round) {
-        // Reset the processed players set
+        // Reset the processed players set for this round
         processedPlayers.clear();
 
         // Find duplicate words
@@ -203,7 +222,7 @@ public class GameController {
                 // Mark this player as processed
                 processedPlayers.add(playerId);
 
-                // CRITICAL: Get the LATEST player data from Firebase to ensure accurate lives count
+                // Get the latest player data from Firebase to ensure accurate lives count
                 database.child("games").child(gameId).child("players").child(playerId).get()
                         .addOnCompleteListener(task -> {
                             if (task.isSuccessful() && task.getResult() != null) {
@@ -362,17 +381,31 @@ public class GameController {
     private boolean checkAllPlayersSubmitted(List<Player> players) {
         boolean allPlayersSubmitted = true;
         int activePlayers = 0;
+        int submittedCount = 0;
+
+        // Add better debugging
+        System.out.println("TELEPATHY_DEBUG: Checking player submissions:");
 
         for (Player player : players) {
             if (!player.isEliminated()) {
                 activePlayers++;
-                // If an active player hasn't submitted a word, not everyone is done
-                if (player.getCurrentWord() == null || player.getCurrentWord().isEmpty()) {
+                String word = player.getCurrentWord();
+                boolean hasSubmitted = word != null && !word.isEmpty();
+
+                System.out.println("TELEPATHY_DEBUG: Player " + player.getUsername() +
+                        " - Submitted: " + hasSubmitted +
+                        (hasSubmitted ? " (word: " + word + ")" : ""));
+
+                if (hasSubmitted) {
+                    submittedCount++;
+                } else {
                     allPlayersSubmitted = false;
-                    break;
                 }
             }
         }
+
+        System.out.println("TELEPATHY_DEBUG: " + submittedCount + " of " + activePlayers +
+                " active players have submitted words. All submitted: " + allPlayersSubmitted);
 
         // We need at least one active player and all must have submitted
         return allPlayersSubmitted && activePlayers > 0;
@@ -380,14 +413,16 @@ public class GameController {
 
     // Helper method to end the current round
     private void endCurrentRound() {
+        System.out.println("TELEPATHY_DEBUG: Ending current round for game " + gameId);
         firebaseController.endCurrentRound(gameId, new FirebaseController.FirebaseCallback() {
             @Override
             public void onSuccess(Object result) {
-                // Round ended successfully in Firebase
+                System.out.println("TELEPATHY_DEBUG: Round ended successfully");
             }
 
             @Override
             public void onFailure(String error) {
+                System.out.println("TELEPATHY_DEBUG: Failed to end round: " + error);
                 if (updateListener != null) {
                     updateListener.onError("Failed to end round: " + error);
                 }
@@ -453,6 +488,50 @@ public class GameController {
             }
         }
         return players;
+    }
+
+    // Handle timer expiration
+    public void handleTimerExpired() {
+        // Only end the round if it's still active
+        if (currentGame != null && "active".equals(currentGame.getStatus())) {
+            System.out.println("TELEPATHY_DEBUG: Timer expired, ending round");
+            endCurrentRound();
+        }
+    }
+
+    private void checkGameEndCondition(List<Player> players) {
+        int activePlayers = 0;
+        Player lastActivePlayer = null;
+
+        for (Player player : players) {
+            if (!player.isEliminated()) {
+                activePlayers++;
+                lastActivePlayer = player;
+            }
+        }
+
+        // Game is over when only one player remains or all players are eliminated
+        if (activePlayers <= 1) {
+            // Update game status to gameEnd
+            Map<String, Object> updates = new HashMap<>();
+            updates.put("status", "gameEnd");
+
+            // If there's a winner (one player left), mark them as winner
+            if (activePlayers == 1 && lastActivePlayer != null) {
+                updates.put("winnerId", lastActivePlayer.getId());
+            }
+
+            // Update game status in Firebase
+            database.child("games").child(gameId).updateChildren(updates)
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful()) {
+                            Log.d("TELEPATHY", "Game ended successfully");
+                        } else {
+                            Log.e("TELEPATHY", "Failed to end game: " +
+                                    (task.getException() != null ? task.getException().getMessage() : "unknown error"));
+                        }
+                    });
+        }
     }
 
     // Extract round data from Firebase
@@ -543,6 +622,7 @@ public class GameController {
             @Override
             public void onSuccess(Object result) {
                 // Word submitted successfully
+                System.out.println("TELEPATHY: Word successfully submitted: " + word);
             }
 
             @Override
@@ -555,7 +635,6 @@ public class GameController {
     }
 
     public void validateWord(String word) {
-        // Simple word validation
         if (word == null || word.trim().isEmpty()) {
             if (updateListener != null) {
                 updateListener.onError("Word cannot be empty");
@@ -563,19 +642,43 @@ public class GameController {
             return;
         }
 
+        // Normalize the word
+        String normalizedWord = word.trim().toLowerCase();
+
         // Check if word is in the current round's word list
         if (currentGame != null && currentGame.getCurrentRound() != null) {
             List<String> validWords = currentGame.getCurrentRound().getWords();
-            if (validWords != null && !validWords.contains(word.trim().toLowerCase())) {
+
+            if (validWords != null) {
+                // Check if word has already been used by this player in previous rounds
+                if (currentGame.isWordAlreadyUsed(normalizedWord)) {
+                    if (updateListener != null) {
+                        updateListener.onError("You've already used this word in a previous round!");
+                    }
+                    return;
+                }
+
+                // Check if word is in valid words list
+                if (!validWords.contains(normalizedWord)) {
+                    if (updateListener != null) {
+                        updateListener.onError("Word is not in the valid word list for this round");
+                    }
+                    return;
+                }
+            } else {
                 if (updateListener != null) {
-                    updateListener.onError("Word is not in the valid word list");
+                    updateListener.onError("No valid words available");
                 }
                 return;
             }
         }
 
-        // If validation passes, submit the word
-        submitWord(word.trim().toLowerCase());
+        // If validation passes, submit the word and add to used words
+        submitWord(normalizedWord);
+        if (currentGame != null) {
+            currentGame.addUsedWord(normalizedWord);
+            System.out.println("TELEPATHY: Player submitted word: " + normalizedWord);
+        }
     }
 
     public void cleanup() {
@@ -588,5 +691,51 @@ public class GameController {
             roundStartHandler.removeCallbacks(roundStartRunnable);
             roundStartRunnable = null;
         }
+    }
+
+    public interface ValidationCallback {
+        void onSuccess();
+        void onError(String errorMessage);
+    }
+
+    public void validateWord(String word, ValidationCallback callback) {
+        if (word == null || word.trim().isEmpty()) {
+            callback.onError("Word cannot be empty");
+            return;
+        }
+
+        // Normalize the word
+        String normalizedWord = word.trim().toLowerCase();
+
+        // Check if word is in the current round's word list
+        if (currentGame != null && currentGame.getCurrentRound() != null) {
+            List<String> validWords = currentGame.getCurrentRound().getWords();
+
+            if (validWords != null) {
+                // Check if word has already been used by ANY player in any round
+                if (currentGame.isWordAlreadyUsed(normalizedWord)) {
+                    callback.onError("This word has already been used in a previous round!");
+                    return;
+                }
+
+                // Check if word is in valid words list
+                if (!validWords.contains(normalizedWord)) {
+                    callback.onError("Word is not in the valid word list for this round");
+                    return;
+                }
+            } else {
+                callback.onError("No valid words available");
+                return;
+            }
+        }
+
+        // If validation passes, submit the word and add to used words
+        submitWord(normalizedWord);
+        if (currentGame != null) {
+            currentGame.addUsedWord(normalizedWord);
+            System.out.println("TELEPATHY: Player submitted word: " + normalizedWord);
+        }
+
+        callback.onSuccess();
     }
 }
