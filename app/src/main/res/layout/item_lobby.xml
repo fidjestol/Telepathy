@@ -46,13 +46,25 @@
             tools:text="Players: 2/8" />
 
         <TextView
-            android:id="@+id/categoryTextView"
+            android:id="@+id/gameModeTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:textSize="14sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/hostNameTextView"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/playerCountTextView"
+            tools:text="Mode: Classic" />
+
+        <TextView
+            android:id="@+id/categoryTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:textSize="14sp"
+            android:visibility="visible"
+            app:layout_constraintStart_toEndOf="@+id/gameModeTextView"
+            app:layout_constraintTop_toBottomOf="@+id/playerCountTextView"
             tools:text="Category: Animals" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>

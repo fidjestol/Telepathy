@@ -59,6 +59,7 @@
     <string name="game_mode">Game Mode</string>
     <string name="game_mode_classic">Classic</string>
     <string name="game_mode_matching">Matching</string>
+    <string name="game_mode_label">Mode: %1$s</string>
 
     <!-- Game End -->
     <string name="game_over">Game Over</string>

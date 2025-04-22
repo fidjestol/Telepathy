@@ -49,6 +49,7 @@ public class LobbyListAdapter extends RecyclerView.Adapter<LobbyListAdapter.Lobb
         private TextView hostNameTextView;
         private TextView playerCountTextView;
         private TextView categoryTextView;
+        private TextView gameModeTextView;
 
         public LobbyViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -56,6 +57,7 @@ public class LobbyListAdapter extends RecyclerView.Adapter<LobbyListAdapter.Lobb
             hostNameTextView = itemView.findViewById(R.id.hostNameTextView);
             playerCountTextView = itemView.findViewById(R.id.playerCountTextView);
             categoryTextView = itemView.findViewById(R.id.categoryTextView);
+            gameModeTextView = itemView.findViewById(R.id.gameModeTextView);
 
             itemView.setOnClickListener(v -> {
                 int position = getAdapterPosition();
@@ -83,9 +85,19 @@ public class LobbyListAdapter extends RecyclerView.Adapter<LobbyListAdapter.Lobb
                     lobby.getPlayers().size(),
                     lobby.getGameConfig().getMaxPlayers()));
 
-            categoryTextView.setText(itemView.getContext().getString(
-                    R.string.category_label,
-                    lobby.getGameConfig().getSelectedCategory()));
+            // Set game mode text
+            String gameMode = lobby.getGameConfig().isMatchingMode() ? "Matching" : "Classic";
+            gameModeTextView.setText(itemView.getContext().getString(R.string.game_mode_label, gameMode));
+
+            // Show category only if not in matching mode
+            if (lobby.getGameConfig().isMatchingMode()) {
+                categoryTextView.setVisibility(View.GONE);
+            } else {
+                categoryTextView.setVisibility(View.VISIBLE);
+                categoryTextView.setText(itemView.getContext().getString(
+                        R.string.category_label,
+                        lobby.getGameConfig().getSelectedCategory()));
+            }
         }
     }
 }

@@ -32,6 +32,7 @@ public class LobbyActivity extends AppCompatActivity {
     private TextView lobbyNameTextView;
     private TextView hostNameTextView;
     private TextView categoryTextView;
+    private TextView gameModeTextView;
     private RecyclerView playersRecyclerView;
     private Button startGameButton;
     private Button leaveLobbyButton;
@@ -63,6 +64,7 @@ public class LobbyActivity extends AppCompatActivity {
         lobbyNameTextView = findViewById(R.id.lobbyNameTextView);
         hostNameTextView = findViewById(R.id.hostNameTextView);
         categoryTextView = findViewById(R.id.categoryTextView);
+        gameModeTextView = findViewById(R.id.gameModeTextView);
         playersRecyclerView = findViewById(R.id.playersRecyclerView);
         startGameButton = findViewById(R.id.startGameButton);
         leaveLobbyButton = findViewById(R.id.leaveLobbyButton);
@@ -175,7 +177,18 @@ public class LobbyActivity extends AppCompatActivity {
         }
 
         hostNameTextView.setText(getString(R.string.host_name, hostName));
-        categoryTextView.setText(getString(R.string.category_label, lobby.getGameConfig().getSelectedCategory()));
+
+        // Set game mode text
+        String gameMode = lobby.getGameConfig().isMatchingMode() ? "Matching" : "Classic";
+        gameModeTextView.setText(getString(R.string.game_mode_label, gameMode));
+
+        // Show/hide category based on game mode
+        if (lobby.getGameConfig().isMatchingMode()) {
+            categoryTextView.setVisibility(View.GONE);
+        } else {
+            categoryTextView.setVisibility(View.VISIBLE);
+            categoryTextView.setText(getString(R.string.category_label, lobby.getGameConfig().getSelectedCategory()));
+        }
 
         // Update players list
         players.clear();
