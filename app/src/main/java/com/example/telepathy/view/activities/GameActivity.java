@@ -460,6 +460,11 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             if (player.getId().equals(playerId)) {
                 // Current player eliminated
                 showEliminationDialog();
+                // Hide the input layout
+                View inputLayout = findViewById(R.id.inputLayout);
+                if (inputLayout != null) {
+                    inputLayout.setVisibility(View.GONE);
+                }
             } else {
                 // Another player eliminated
                 Toast.makeText(this, player.getUsername() + " has been eliminated!", Toast.LENGTH_SHORT).show();
