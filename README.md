@@ -74,7 +74,7 @@ Telepathy is a multiplayer word game for Android where players try to choose uni
 
 - **Can't connect to a game**: Check your internet connection and ensure the app has network permissions
 - **Game freezes**: Try closing and reopening the app
-- **Login issues**: Verify your email and password are correct, or use the password reset option
+- **Login issues**: Verify your email and password are correct.
 
 ## License
 
