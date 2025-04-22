@@ -156,6 +156,7 @@ public class CreateLobbyFragment extends Fragment {
         Player host = new Player(playerId, playerName);
         host.setId(playerId);
         host.setHost(true);
+        host.setLives(lives);
         if (isMatchingMode) {
             host.setLives(lives);
         }
