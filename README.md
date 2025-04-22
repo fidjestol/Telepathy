@@ -15,7 +15,7 @@ Telepathy is a multiplayer word game for Android where players try to choose uni
 
 ### Option 1: Install APK directly
 
-1. Download the latest APK file from the [Releases](https://github.com/yourusername/telepathy/releases) page
+1. Download the latest APK file from the [Releases](https://github.com/fidjestol/telepathy/releases) page
 2. On your Android device, enable installation from unknown sources:
    - Go to Settings > Security > Install unknown apps
    - Select your file browser and toggle "Allow from this source"
