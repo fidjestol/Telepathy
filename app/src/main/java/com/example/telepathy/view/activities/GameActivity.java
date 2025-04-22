@@ -41,6 +41,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     private TextView timerTextView;
     private TextView roundTextView;
     private TextView livesTextView;
+    private TextView categoryGameTextView;
     private RecyclerView playersRecyclerView;
     private EditText wordInputEditText;
     private Button submitButton;
@@ -91,6 +92,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         timerTextView = findViewById(R.id.timerTextView);
         roundTextView = findViewById(R.id.roundTextView);
         livesTextView = findViewById(R.id.livesTextView);
+        categoryGameTextView = findViewById(R.id.categoryGameTextView);
         playersRecyclerView = findViewById(R.id.playersRecyclerView);
         wordInputEditText = findViewById(R.id.wordInputEditText);
         submitButton = findViewById(R.id.submitButton);
@@ -275,7 +277,18 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
                     public void onSuccess(Object result) {
                         Lobby lobby = (Lobby) result;
                         if (lobby != null) {
-                            runOnUiThread(() -> lobbyNameTextView.setText(lobby.getName()));
+                            runOnUiThread(() -> {
+                                lobbyNameTextView.setText(lobby.getName());
+
+                                // Update category visibility based on game mode
+                                if (game.getConfig().isMatchingMode()) {
+                                    categoryGameTextView.setVisibility(View.GONE);
+                                } else {
+                                    categoryGameTextView.setVisibility(View.VISIBLE);
+                                    categoryGameTextView.setText(getString(R.string.category_label,
+                                            game.getConfig().getSelectedCategory()));
+                                }
+                            });
                         }
                     }
 
@@ -306,6 +319,11 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             if (game.getUsedWords() != null && !game.getUsedWords().isEmpty()) {
                 System.out.println("TELEPATHY: Used words in game so far: " +
                         String.join(", ", game.getUsedWords()));
+            }
+
+            // Update round number
+            if (game.getCurrentRound() != null) {
+                roundTextView.setText(getString(R.string.round_number, game.getCurrentRound().getRoundNumber()));
             }
         });
     }

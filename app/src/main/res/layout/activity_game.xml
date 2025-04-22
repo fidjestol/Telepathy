@@ -14,15 +14,24 @@
     <!-- Game info header -->
     <TextView
         android:id="@+id/lobbyNameTextView"
-        android:layout_width="0dp"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textSize="18sp"
         android:textStyle="bold"
         android:layout_marginTop="?attr/actionBarSize"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         android:text="@string/lobby_name" />
+
+    <TextView
+        android:id="@+id/categoryGameTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        app:layout_constraintTop_toTopOf="@id/lobbyNameTextView"
+        app:layout_constraintBottom_toBottomOf="@id/lobbyNameTextView"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:text="Category: Animals" />
 
     <TextView
         android:id="@+id/roundTextView"
