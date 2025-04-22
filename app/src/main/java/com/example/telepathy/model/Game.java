@@ -154,18 +154,21 @@ public class Game {
     }
 
     private void processDuplicateWords() {
-        if (currentRound == null) return;
+        if (currentRound == null)
+            return;
 
         // Find duplicate words and penalize players
         for (String word : currentRound.findDuplicateWords().keySet()) {
             List<String> playerIds = currentRound.findDuplicateWords().get(word);
-            System.out.println("TELEPATHY: Found duplicate word: " + word + " used by " + playerIds.size() + " players");
+            System.out
+                    .println("TELEPATHY: Found duplicate word: " + word + " used by " + playerIds.size() + " players");
 
             for (String playerId : playerIds) {
                 Player player = getPlayerById(playerId);
                 if (player != null) {
                     player.loseLife();
-                    System.out.println("TELEPATHY: Player " + player.getUsername() + " lost a life for duplicate word: " + word);
+                    System.out.println(
+                            "TELEPATHY: Player " + player.getUsername() + " lost a life for duplicate word: " + word);
                 }
             }
         }
@@ -212,7 +215,8 @@ public class Game {
     }
 
     public Player getWinner() {
-        if (!isGameOver()) return null;
+        if (!isGameOver())
+            return null;
 
         for (Player player : players) {
             if (!player.isEliminated()) {

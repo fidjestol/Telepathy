@@ -39,10 +39,15 @@ public class GameController {
     // Interface for game updates
     public interface GameUpdateListener {
         void onGameStateChanged(Game game);
+
         void onRoundStart(GameRound round);
+
         void onRoundEnd(GameRound round);
+
         void onPlayerEliminated(Player player);
+
         void onGameEnd(Player winner);
+
         void onError(String error);
     }
 
@@ -216,6 +221,7 @@ public class GameController {
             updateListener.onGameStateChanged(currentGame);
         }
     }
+
     private boolean isWaitingForRoundStart(String roundStarterId) {
         return currentRoundStarterId != null && currentRoundStarterId.equals(roundStarterId);
     }
@@ -266,7 +272,8 @@ public class GameController {
         Map<String, List<String>> wordToPlayers = new HashMap<>();
 
         for (Player player : players) {
-            if (player.isEliminated()) continue;
+            if (player.isEliminated())
+                continue;
 
             String word = player.getCurrentWord();
             if (word != null && !word.isEmpty()) {
@@ -346,6 +353,8 @@ public class GameController {
         GameConfig config = new GameConfig();
         Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
         if (configData != null) {
+            System.out.println("TELEPATHY_DEBUG: Raw config data from Firebase: " + configData);
+
             // Safely convert numeric values which might be Long from Firebase
             Object timeLimitObj = configData.get("timeLimit");
             if (timeLimitObj instanceof Long) {
@@ -361,6 +370,13 @@ public class GameController {
             if (livesObj instanceof Long) {
                 config.setLivesPerPlayer(((Long) livesObj).intValue());
             }
+
+            // Add matchingMode extraction
+            Object matchingModeObj = configData.get("matchingMode");
+            if (matchingModeObj instanceof Boolean) {
+                config.setMatchingMode((Boolean) matchingModeObj);
+            }
+            System.out.println("TELEPATHY_DEBUG: Extracted matchingMode: " + config.isMatchingMode());
 
             config.setSelectedCategory((String) configData.get("selectedCategory"));
         }
@@ -545,41 +561,61 @@ public class GameController {
         });
     }
 
-    public void validateWord(String word) {
-        if (word == null || word.trim().isEmpty()) {
-            if (updateListener != null) {
-                updateListener.onError("Word cannot be empty");
+    public void validateWord(String word, ValidationCallback callback) {
+        System.out.println("TELEPATHY_DEBUG: what mode are we in? " + currentGame.getConfig().isMatchingMode());
+        // Create default callback if none provided
+        ValidationCallback actualCallback = callback != null ? callback : new ValidationCallback() {
+            @Override
+            public void onSuccess() {
+                // Default success does nothing
             }
+
+            @Override
+            public void onError(String errorMessage) {
+                // Default error handling uses updateListener
+                if (updateListener != null) {
+                    updateListener.onError(errorMessage);
+                }
+            }
+        };
+
+        if (word == null || word.trim().isEmpty()) {
+            actualCallback.onError("Word cannot be empty");
             return;
         }
 
         // Normalize the word
         String normalizedWord = word.trim().toLowerCase();
 
-        // Check if word is in the current round's word list
+        // Handle matching mode
+        if (currentGame != null && currentGame.getConfig().isMatchingMode()) {
+            System.out.println("TELEPATHY_DEBUG: letting every word through");
+            submitWord(normalizedWord);
+            currentGame.addUsedWord(normalizedWord);
+            System.out.println("TELEPATHY: Player submitted word in matching mode: " + normalizedWord);
+            actualCallback.onSuccess();
+            return;
+        }
+
+        // Regular mode validation
         if (currentGame != null && currentGame.getCurrentRound() != null) {
+            System.out.println("debuggin: Normal mode validation");
             List<String> validWords = currentGame.getCurrentRound().getWords();
 
             if (validWords != null) {
-                // Check if word has already been used by this player in previous rounds
+                // Check if word has already been used by ANY player in any round
                 if (currentGame.isWordAlreadyUsed(normalizedWord)) {
-                    if (updateListener != null) {
-                        updateListener.onError("You've already used this word in a previous round!");
-                    }
+                    actualCallback.onError("This word has already been used in a previous round!");
                     return;
                 }
 
                 // Check if word is in valid words list
                 if (!validWords.contains(normalizedWord)) {
-                    if (updateListener != null) {
-                        updateListener.onError("Word is not in the valid word list for this round");
-                    }
+                    actualCallback.onError("Word is not in the valid word list for this round");
                     return;
                 }
             } else {
-                if (updateListener != null) {
-                    updateListener.onError("No valid words available");
-                }
+                actualCallback.onError("No valid words available");
                 return;
             }
         }
@@ -590,6 +626,14 @@ public class GameController {
             currentGame.addUsedWord(normalizedWord);
             System.out.println("TELEPATHY: Player submitted word: " + normalizedWord);
         }
+
+        actualCallback.onSuccess();
+    }
+
+    public interface ValidationCallback {
+        void onSuccess();
+
+        void onError(String errorMessage);
     }
 
     public void cleanup() {
@@ -602,51 +646,5 @@ public class GameController {
             roundStartHandler.removeCallbacks(roundStartRunnable);
             roundStartRunnable = null;
         }
-    }
-
-    public interface ValidationCallback {
-        void onSuccess();
-        void onError(String errorMessage);
-    }
-
-    public void validateWord(String word, ValidationCallback callback) {
-        if (word == null || word.trim().isEmpty()) {
-            callback.onError("Word cannot be empty");
-            return;
-        }
-
-        // Normalize the word
-        String normalizedWord = word.trim().toLowerCase();
-
-        // Check if word is in the current round's word list
-        if (currentGame != null && currentGame.getCurrentRound() != null) {
-            List<String> validWords = currentGame.getCurrentRound().getWords();
-
-            if (validWords != null) {
-                // Check if word has already been used by ANY player in any round
-                if (currentGame.isWordAlreadyUsed(normalizedWord)) {
-                    callback.onError("This word has already been used in a previous round!");
-                    return;
-                }
-
-                // Check if word is in valid words list
-                if (!validWords.contains(normalizedWord)) {
-                    callback.onError("Word is not in the valid word list for this round");
-                    return;
-                }
-            } else {
-                callback.onError("No valid words available");
-                return;
-            }
-        }
-
-        // If validation passes, submit the word and add to used words
-        submitWord(normalizedWord);
-        if (currentGame != null) {
-            currentGame.addUsedWord(normalizedWord);
-            System.out.println("TELEPATHY: Player submitted word: " + normalizedWord);
-        }
-
-        callback.onSuccess();
     }
 }

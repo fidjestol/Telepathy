@@ -39,7 +39,8 @@ public class JoinLobbyFragment extends Fragment implements LobbyListAdapter.OnLo
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+            @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_join_lobby, container, false);
 
         // Get player data from arguments
@@ -113,6 +114,13 @@ public class JoinLobbyFragment extends Fragment implements LobbyListAdapter.OnLo
         // Create player instance
         Player player = new Player(playerId, playerName);
         player.setId(playerId);
+
+        // Set lives based on game mode
+        if (lobby.getGameConfig().isMatchingMode()) {
+            player.setLives(1); // Matching mode always has 1 life
+        } else {
+            player.setLives(lobby.getGameConfig().getLivesPerPlayer()); // Use the lobby's configured lives
+        }
 
         // Join lobby
         firebaseController.joinLobby(lobby.getId(), player, new FirebaseController.FirebaseCallback() {

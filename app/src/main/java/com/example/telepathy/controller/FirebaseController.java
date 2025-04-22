@@ -28,10 +28,10 @@ public class FirebaseController {
     private FirebaseAuth auth;
     private DatabaseReference database;
 
-
     // Interface for callbacks
     public interface FirebaseCallback {
         void onSuccess(Object result);
+
         void onFailure(String error);
     }
 
@@ -48,8 +48,10 @@ public class FirebaseController {
     }
 
     // Helper method to update player data
-    public void updatePlayerData(String gameId, String playerId, Map<String, Object> updates, FirebaseCallback callback) {
-        if (gameId == null || gameId.isEmpty() || playerId == null || playerId.isEmpty() || updates == null || updates.isEmpty()) {
+    public void updatePlayerData(String gameId, String playerId, Map<String, Object> updates,
+            FirebaseCallback callback) {
+        if (gameId == null || gameId.isEmpty() || playerId == null || playerId.isEmpty() || updates == null
+                || updates.isEmpty()) {
             callback.onFailure("Invalid parameters for player update");
             return;
         }
@@ -60,8 +62,8 @@ public class FirebaseController {
                     if (task.isSuccessful()) {
                         callback.onSuccess(null);
                     } else {
-                        callback.onFailure(task.getException() != null ?
-                                task.getException().getMessage() : "Failed to update player data");
+                        callback.onFailure(task.getException() != null ? task.getException().getMessage()
+                                : "Failed to update player data");
                     }
                 });
     }
@@ -79,8 +81,8 @@ public class FirebaseController {
                     if (task.isSuccessful()) {
                         callback.onSuccess(null);
                     } else {
-                        callback.onFailure(task.getException() != null ?
-                                task.getException().getMessage() : "Failed to update game data");
+                        callback.onFailure(task.getException() != null ? task.getException().getMessage()
+                                : "Failed to update game data");
                     }
                 });
     }
@@ -102,8 +104,8 @@ public class FirebaseController {
                             callback.onFailure("Lobby not found");
                         }
                     } else {
-                        callback.onFailure(task.getException() != null ?
-                                task.getException().getMessage() : "Failed to retrieve lobby");
+                        callback.onFailure(task.getException() != null ? task.getException().getMessage()
+                                : "Failed to retrieve lobby");
                     }
                 });
     }
@@ -116,7 +118,7 @@ public class FirebaseController {
                         FirebaseUser firebaseUser = auth.getCurrentUser();
                         if (firebaseUser != null) {
                             // Create player profile
-                            User newUser = new User(firebaseUser.getUid(),username);
+                            User newUser = new User(firebaseUser.getUid(), username);
 
                             // Save to database
                             database.child("users").child(firebaseUser.getUid()).setValue(newUser)
@@ -129,8 +131,8 @@ public class FirebaseController {
                                     });
                         }
                     } else {
-                        callback.onFailure(task.getException() != null ?
-                                task.getException().getMessage() : "Registration failed");
+                        callback.onFailure(
+                                task.getException() != null ? task.getException().getMessage() : "Registration failed");
                     }
                 });
     }
@@ -152,8 +154,8 @@ public class FirebaseController {
                                     });
                         }
                     } else {
-                        callback.onFailure(task.getException() != null ?
-                                task.getException().getMessage() : "Login failed");
+                        callback.onFailure(
+                                task.getException() != null ? task.getException().getMessage() : "Login failed");
                     }
                 });
     }
@@ -294,7 +296,6 @@ public class FirebaseController {
                 });
     }
 
-
     public void startGame(String lobbyId, FirebaseCallback callback) {
         database.child("lobbies").child(lobbyId).get()
                 .addOnCompleteListener(task -> {
@@ -305,7 +306,8 @@ public class FirebaseController {
                             Object lobbyDataObj = snapshot.getValue();
 
                             // Add debug info
-                            System.out.println("LOBBY DATA TYPE: " + (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
+                            System.out.println("LOBBY DATA TYPE: "
+                                    + (lobbyDataObj != null ? lobbyDataObj.getClass().getName() : "null"));
 
                             // Check data type before casting
                             if (!(lobbyDataObj instanceof Map)) {
@@ -320,7 +322,8 @@ public class FirebaseController {
                             Object playersObj = lobbyData.get("players");
 
                             // Debug info
-                            System.out.println("PLAYERS DATA TYPE: " + (playersObj != null ? playersObj.getClass().getName() : "null"));
+                            System.out.println("PLAYERS DATA TYPE: "
+                                    + (playersObj != null ? playersObj.getClass().getName() : "null"));
 
                             // Handle players data based on its actual type
                             Map<String, Object> playersMap;
@@ -428,14 +431,16 @@ public class FirebaseController {
                                                             callback.onSuccess(gameId);
                                                         } else {
                                                             callback.onFailure("Failed to update lobby: " +
-                                                                    (lobbyTask.getException() != null ?
-                                                                            lobbyTask.getException().getMessage() : "unknown error"));
+                                                                    (lobbyTask.getException() != null
+                                                                            ? lobbyTask.getException().getMessage()
+                                                                            : "unknown error"));
                                                         }
                                                     });
                                         } else {
                                             callback.onFailure("Failed to create game: " +
-                                                    (gameTask.getException() != null ?
-                                                            gameTask.getException().getMessage() : "unknown error"));
+                                                    (gameTask.getException() != null
+                                                            ? gameTask.getException().getMessage()
+                                                            : "unknown error"));
                                         }
                                     });
                         } catch (Exception e) {
@@ -454,9 +459,10 @@ public class FirebaseController {
         return com.example.telepathy.model.WordSelection.getRandomWords(category, count);
     }
 
-    // Replace the endCurrentRound method in FirebaseController.java to automatically schedule the next round
+    // Replace the endCurrentRound method in FirebaseController.java to
+    // automatically schedule the next round
 
-// In FirebaseController.java, modify the endCurrentRound method:
+    // In FirebaseController.java, modify the endCurrentRound method:
 
     public void endCurrentRound(String gameId, FirebaseCallback callback) {
         System.out.println("TELEPATHY: Ending current round for game " + gameId);
@@ -488,8 +494,8 @@ public class FirebaseController {
 
                             // Keep track of updates to make
                             Map<String, Object> updates = new HashMap<>();
-                            int[] activePlayerCount = {0};
-                            int[] remainingPlayerCount = {0};
+                            int[] activePlayerCount = { 0 };
+                            int[] remainingPlayerCount = { 0 };
 
                             // CRITICAL: Use a single set to track all players that will lose lives
                             Set<String> playersLosingLives = new HashSet<>();
@@ -505,14 +511,17 @@ public class FirebaseController {
 
                                     // Check if player is eliminated
                                     Object eliminatedObj = playerData.get("eliminated");
-                                    boolean isEliminated = (eliminatedObj instanceof Boolean && (Boolean) eliminatedObj);
+                                    boolean isEliminated = (eliminatedObj instanceof Boolean
+                                            && (Boolean) eliminatedObj);
 
                                     if (!isEliminated) {
                                         remainingPlayerCount[0]++;
 
                                         // Get player's word
                                         Object currentWordObj = playerData.get("currentWord");
-                                        String currentWord = (currentWordObj instanceof String) ? (String) currentWordObj : "";
+                                        String currentWord = (currentWordObj instanceof String)
+                                                ? (String) currentWordObj
+                                                : "";
 
                                         if (currentWord == null || currentWord.isEmpty()) {
                                             // Player didn't submit a word - add to losing lives set
@@ -546,7 +555,8 @@ public class FirebaseController {
                                         playersLosingLives.add(playerId);
 
                                         // Get the username for logging
-                                        Map<String, Object> playerData = (Map<String, Object>) playersData.get(playerId);
+                                        Map<String, Object> playerData = (Map<String, Object>) playersData
+                                                .get(playerId);
                                         if (playerData != null) {
                                             System.out.println("TELEPATHY_DEBUG: Player " + playerData.get("username") +
                                                     " will lose 1 life for duplicate word '" + word + "'");
@@ -558,7 +568,8 @@ public class FirebaseController {
                             // SINGLE pass to reduce lives - This ensures each player loses at most ONE life
                             for (String playerId : playersLosingLives) {
                                 Map<String, Object> playerData = (Map<String, Object>) playersData.get(playerId);
-                                if (playerData == null) continue;
+                                if (playerData == null)
+                                    continue;
 
                                 // Get current lives
                                 int currentLives = 3; // Default
@@ -596,7 +607,8 @@ public class FirebaseController {
                                 if (playerIds.size() == 1) {
                                     String playerId = playerIds.get(0);
                                     Map<String, Object> playerData = (Map<String, Object>) playersData.get(playerId);
-                                    if (playerData == null) continue;
+                                    if (playerData == null)
+                                        continue;
 
                                     // Get current score
                                     int currentScore = 0;
@@ -626,17 +638,21 @@ public class FirebaseController {
                                         processingRounds.remove(roundEndKey);
 
                                         if (task.isSuccessful()) {
-                                            System.out.println("TELEPATHY: Round ended with " + remainingPlayerCount[0] + " remaining players");
+                                            System.out.println("TELEPATHY: Round ended with " + remainingPlayerCount[0]
+                                                    + " remaining players");
 
                                             // Check if game should end
                                             if (remainingPlayerCount[0] <= 1) {
                                                 // Game over - one or zero players left
-                                                System.out.println("TELEPATHY_DEBUG: Game should end - only " + remainingPlayerCount[0] + " player(s) remaining");
-                                                database.child("games").child(gameId).child("status").setValue("gameEnd");
+                                                System.out.println("TELEPATHY_DEBUG: Game should end - only "
+                                                        + remainingPlayerCount[0] + " player(s) remaining");
+                                                database.child("games").child(gameId).child("status")
+                                                        .setValue("gameEnd");
                                             } else {
                                                 // Schedule next round
                                                 Map<String, Object> roundUpdates = new HashMap<>();
-                                                roundUpdates.put("nextRoundStartTime", System.currentTimeMillis() + 5000);
+                                                roundUpdates.put("nextRoundStartTime",
+                                                        System.currentTimeMillis() + 5000);
                                                 roundUpdates.put("roundStarterId", UUID.randomUUID().toString());
                                                 database.child("games").child(gameId).updateChildren(roundUpdates);
                                             }
@@ -659,7 +675,9 @@ public class FirebaseController {
     }
 
     // Add at class level in FirebaseController.java:
-    private Set<String> processingRounds = new HashSet<>();    public void submitWord(String gameId, String playerId, String word, FirebaseCallback callback) {
+    private Set<String> processingRounds = new HashSet<>();
+
+    public void submitWord(String gameId, String playerId, String word, FirebaseCallback callback) {
         database.child("games").child(gameId).child("players").child(playerId).child("currentWord")
                 .setValue(word)
                 .addOnCompleteListener(task -> {
@@ -675,7 +693,8 @@ public class FirebaseController {
         database.child("games").child(gameId).addValueEventListener(listener);
     }
 
-// Fix for startNextRound method in FirebaseController.java to prevent round skipping and word list issues
+    // Fix for startNextRound method in FirebaseController.java to prevent round
+    // skipping and word list issues
 
     public void startNextRound(String gameId, FirebaseCallback callback) {
         // Debug logging
@@ -697,7 +716,8 @@ public class FirebaseController {
                             // Get current status - only proceed if status is roundEnd
                             String status = (String) gameData.get("status");
                             if (!"roundEnd".equals(status)) {
-                                System.out.println("TELEPATHY: Cannot start next round - game status is " + status + " instead of roundEnd");
+                                System.out.println("TELEPATHY: Cannot start next round - game status is " + status
+                                        + " instead of roundEnd");
                                 callback.onFailure("Game is not in roundEnd status");
                                 return;
                             }
@@ -755,7 +775,8 @@ public class FirebaseController {
                             List<String> words = WordSelection.getAllWordsForCategory(category);
                             newRoundData.put("words", words);
 
-                            System.out.println("TELEPATHY: Using " + words.size() + " words for round " + nextRoundNumber);
+                            System.out.println(
+                                    "TELEPATHY: Using " + words.size() + " words for round " + nextRoundNumber);
 
                             // Create combined update map
                             Map<String, Object> updates = new HashMap<>();
@@ -780,15 +801,18 @@ public class FirebaseController {
                             database.child("games").child(gameId).updateChildren(updates)
                                     .addOnCompleteListener(updateTask -> {
                                         if (updateTask.isSuccessful()) {
-                                            System.out.println("TELEPATHY: Successfully started round " + nextRoundNumber);
+                                            System.out.println(
+                                                    "TELEPATHY: Successfully started round " + nextRoundNumber);
                                             callback.onSuccess(null);
                                         } else {
                                             System.out.println("TELEPATHY: Failed to start round: " +
-                                                    (updateTask.getException() != null ?
-                                                            updateTask.getException().getMessage() : "unknown error"));
+                                                    (updateTask.getException() != null
+                                                            ? updateTask.getException().getMessage()
+                                                            : "unknown error"));
                                             callback.onFailure("Failed to start next round: " +
-                                                    (updateTask.getException() != null ?
-                                                            updateTask.getException().getMessage() : "unknown error"));
+                                                    (updateTask.getException() != null
+                                                            ? updateTask.getException().getMessage()
+                                                            : "unknown error"));
                                         }
                                     });
 
@@ -803,9 +827,10 @@ public class FirebaseController {
                         callback.onFailure("Failed to get game data");
                     }
                 });
-    }    public void removeGameListener(String gameId, ValueEventListener listener) {
-        database.child("games").child(gameId).removeEventListener(listener);
     }
 
+    public void removeGameListener(String gameId, ValueEventListener listener) {
+        database.child("games").child(gameId).removeEventListener(listener);
+    }
 
 }

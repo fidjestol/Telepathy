@@ -9,6 +9,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -31,6 +32,7 @@ public class CreateLobbyFragment extends Fragment {
     private EditText timeLimitEditText;
     private EditText livesEditText;
     private Spinner categorySpinner;
+    private Spinner gameModeSpinner;
     private Button createButton;
     private ProgressBar progressBar;
 
@@ -40,7 +42,8 @@ public class CreateLobbyFragment extends Fragment {
 
     @Nullable
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container,
+            @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_create_lobby, container, false);
 
         // Get player data from arguments
@@ -57,6 +60,7 @@ public class CreateLobbyFragment extends Fragment {
         timeLimitEditText = view.findViewById(R.id.timeLimitEditText);
         livesEditText = view.findViewById(R.id.livesEditText);
         categorySpinner = view.findViewById(R.id.categorySpinner);
+        gameModeSpinner = view.findViewById(R.id.gameModeSpinner);
         createButton = view.findViewById(R.id.createButton);
         progressBar = view.findViewById(R.id.progressBar);
 
@@ -64,19 +68,28 @@ public class CreateLobbyFragment extends Fragment {
         timeLimitEditText.setText(String.valueOf(Constants.DEFAULT_TIME_LIMIT));
         livesEditText.setText(String.valueOf(Constants.DEFAULT_LIVES));
 
+        // Setup game mode spinner
+        List<String> gameModes = Arrays.asList(
+                getString(R.string.game_mode_classic),
+                getString(R.string.game_mode_matching));
+        ArrayAdapter<String> gameModeAdapter = new ArrayAdapter<>(
+                requireContext(),
+                android.R.layout.simple_spinner_item,
+                gameModes);
+        gameModeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        gameModeSpinner.setAdapter(gameModeAdapter);
+
         // Set up category spinner
         List<String> categories = Arrays.asList(
                 Constants.CATEGORY_ANIMALS,
                 Constants.CATEGORY_COUNTRIES,
                 Constants.CATEGORY_FOODS,
-                Constants.CATEGORY_SPORTS
-        );
+                Constants.CATEGORY_SPORTS);
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
                 requireContext(),
                 android.R.layout.simple_spinner_item,
-                categories
-        );
+                categories);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         categorySpinner.setAdapter(adapter);
 
@@ -91,6 +104,7 @@ public class CreateLobbyFragment extends Fragment {
         String timeLimitStr = timeLimitEditText.getText().toString().trim();
         String livesStr = livesEditText.getText().toString().trim();
         String selectedCategory = categorySpinner.getSelectedItem().toString();
+        boolean isMatchingMode = gameModeSpinner.getSelectedItemPosition() == 1;
 
         // Validate input
         if (lobbyName.isEmpty()) {
@@ -127,6 +141,14 @@ public class CreateLobbyFragment extends Fragment {
             return;
         }
 
+        int maxPlayers;
+        if (isMatchingMode) {
+            lives = 1;
+            maxPlayers = 2;
+        } else {
+            maxPlayers = Constants.DEFAULT_MAX_PLAYERS;
+        }
+
         // Show progress bar
         progressBar.setVisibility(View.VISIBLE);
 
@@ -134,9 +156,13 @@ public class CreateLobbyFragment extends Fragment {
         Player host = new Player(playerId, playerName);
         host.setId(playerId);
         host.setHost(true);
+        if (isMatchingMode) {
+            host.setLives(lives);
+        }
 
         // Create game config
-        GameConfig config = new GameConfig(timeLimit, Constants.DEFAULT_MAX_PLAYERS, lives, selectedCategory);
+        GameConfig config = new GameConfig(timeLimit, maxPlayers, lives, selectedCategory);
+        config.setMatchingMode(isMatchingMode);
 
         // Create lobby
         Lobby lobby = new Lobby(lobbyName, host);
@@ -152,7 +178,8 @@ public class CreateLobbyFragment extends Fragment {
                 // Navigate to lobby activity/fragment
                 Toast.makeText(requireContext(), "Lobby created successfully!", Toast.LENGTH_SHORT).show();
 
-                // Navigate to game activity directly (or you could create a LobbyActivity to wait for players)
+                // Navigate to game activity directly (or you could create a LobbyActivity to
+                // wait for players)
                 if (getActivity() instanceof MainActivity) {
                     ((MainActivity) getActivity()).navigateToGameActivity(createdLobby.getId(), null);
                 }

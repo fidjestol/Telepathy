@@ -55,6 +55,11 @@
     <string name="rules_time_limit">Time Limit: %1$d seconds</string>
     <string name="rules_lives">Lives: %1$d</string>
 
+    <!-- Game Mode -->
+    <string name="game_mode">Game Mode</string>
+    <string name="game_mode_classic">Classic</string>
+    <string name="game_mode_matching">Matching</string>
+
     <!-- Game End -->
     <string name="game_over">Game Over</string>
     <string name="winner_announcement">%1$s is the winner!</string>

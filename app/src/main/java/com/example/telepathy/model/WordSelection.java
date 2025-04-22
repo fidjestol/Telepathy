@@ -20,36 +20,33 @@ public class WordSelection {
                 "dog", "cat", "elephant", "tiger", "lion", "giraffe", "zebra", "monkey",
                 "bear", "wolf", "fox", "deer", "rabbit", "squirrel", "mouse", "rat",
                 "eagle", "hawk", "owl", "penguin", "dolphin", "whale", "shark", "snake",
-                "turtle", "crocodile", "frog", "spider", "ant", "bee", "butterfly"
-        ));
+                "turtle", "crocodile", "frog", "spider", "ant", "bee", "butterfly"));
 
         // Countries category
         categoryWords.put("Countries", Arrays.asList(
                 "usa", "canada", "mexico", "brazil", "argentina", "chile", "peru",
                 "france", "germany", "italy", "spain", "portugal", "england", "ireland",
                 "russia", "china", "japan", "india", "australia", "egypt", "nigeria",
-                "kenya", "south africa", "morocco", "greece", "turkey", "sweden", "norway"
-        ));
+                "kenya", "south africa", "morocco", "greece", "turkey", "sweden", "norway"));
 
         // Foods category
         categoryWords.put("Foods", Arrays.asList(
                 "pizza", "burger", "pasta", "rice", "bread", "potato", "tomato", "onion",
                 "carrot", "broccoli", "apple", "banana", "orange", "strawberry", "grape",
                 "chicken", "beef", "pork", "fish", "egg", "milk", "cheese", "yogurt",
-                "ice cream", "chocolate", "cake", "cookie", "pie", "soup", "salad"
-        ));
+                "ice cream", "chocolate", "cake", "cookie", "pie", "soup", "salad"));
 
         // Sports category
         categoryWords.put("Sports", Arrays.asList(
                 "soccer", "football", "basketball", "baseball", "tennis", "golf", "hockey",
                 "volleyball", "swimming", "running", "cycling", "skiing", "snowboarding",
                 "surfing", "boxing", "wrestling", "karate", "judo", "gymnastics", "cricket",
-                "rugby", "badminton", "table tennis", "bowling", "skating", "climbing"
-        ));
+                "rugby", "badminton", "table tennis", "bowling", "skating", "climbing"));
     }
 
     /**
      * Get the entire list of words for the specified category
+     * 
      * @param category The category to get words from
      * @return List of all words in the category
      */
@@ -69,8 +66,9 @@ public class WordSelection {
 
     /**
      * Get a list of random words from the specified category
+     * 
      * @param category The category to select words from
-     * @param count The number of words to select
+     * @param count    The number of words to select
      * @return List of randomly selected words
      */
     public static List<String> getRandomWords(String category, int count) {
@@ -98,11 +96,13 @@ public class WordSelection {
 
     /**
      * Check if a word exists in the specified category
+     * 
      * @param category The category to check
-     * @param word The word to check
+     * @param word     The word to check
      * @return True if the word exists in the category
      */
     public static boolean isWordInCategory(String category, String word) {
+
         List<String> wordList = categoryWords.get(category);
 
         if (wordList == null) {
@@ -114,6 +114,7 @@ public class WordSelection {
 
     /**
      * Get all available categories
+     * 
      * @return List of category names
      */
     public static List<String> getCategories() {
