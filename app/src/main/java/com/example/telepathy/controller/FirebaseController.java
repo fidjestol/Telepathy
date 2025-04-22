@@ -619,10 +619,16 @@ public class FirebaseController {
         // In matching mode:
         // - Check if any words match
         // - No life loss
-        // - Game ends when words match
+        // - All matching players are winners
+        boolean foundMatch = false;
+        Set<String> matchingPlayers = new HashSet<>();
+
         for (Map.Entry<String, List<String>> entry : wordToPlayers.entrySet()) {
             List<String> playerIds = entry.getValue();
             if (playerIds.size() > 1) {
+                foundMatch = true;
+                matchingPlayers.addAll(playerIds);
+
                 // Award points to all players who matched
                 for (String playerId : playerIds) {
                     Map<String, Object> playerData = (Map<String, Object>) playersData.get(playerId);
@@ -643,6 +649,14 @@ public class FirebaseController {
                     updates.put("players/" + playerId + "/score", newScore);
                 }
             }
+        }
+
+        // If we found matching players, they are all winners
+        if (foundMatch) {
+            // Convert the set of winning player IDs to a list
+            List<String> winnerIds = new ArrayList<>(matchingPlayers);
+            updates.put("winnerIds", winnerIds); // Store multiple winners
+            System.out.println("TELEPATHY_DEBUG: Found " + winnerIds.size() + " matching winners!");
         }
     }
 

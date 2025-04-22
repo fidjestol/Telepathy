@@ -553,15 +553,49 @@ public class GameController {
                 // Add a delay before allowing another round end to be processed
                 new Handler().postDelayed(() -> isProcessingRoundEnd = false, 3000);
             } else if ("gameEnd".equals(status)) {
-                // Find winner
-                Player winner = null;
-                for (Player player : players) {
-                    if (!player.isEliminated()) {
-                        winner = player;
-                        break;
+                if (currentGame.getConfig().isMatchingMode()) {
+                    // In matching mode, the current player is a winner if they matched
+                    boolean isWinner = false;
+                    String currentWord = null;
+
+                    // Get current player's word
+                    for (Player player : players) {
+                        if (player.getId().equals(currentPlayerId)) {
+                            currentWord = player.getCurrentWord();
+                            break;
+                        }
                     }
+
+                    // Check if any other player has the same word
+                    if (currentWord != null && !currentWord.isEmpty()) {
+                        for (Player player : players) {
+                            if (!player.getId().equals(currentPlayerId) &&
+                                    currentWord.equals(player.getCurrentWord())) {
+                                isWinner = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (isWinner) {
+                        // Current player matched, show they won
+                        updateListener.onGameEnd(null); // null indicates matching win
+                    } else {
+                        // Current player didn't match, show they lost
+                        Player winner = null; // No specific winner to show
+                        updateListener.onGameEnd(winner);
+                    }
+                } else {
+                    // Classic mode - find the last player standing
+                    Player winner = null;
+                    for (Player player : players) {
+                        if (!player.isEliminated()) {
+                            winner = player;
+                            break;
+                        }
+                    }
+                    updateListener.onGameEnd(winner);
                 }
-                updateListener.onGameEnd(winner);
             }
         }
     }

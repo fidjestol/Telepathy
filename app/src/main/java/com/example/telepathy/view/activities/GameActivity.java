@@ -59,7 +59,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     private String gameId;
     private String playerId;
     private List<Player> players = new ArrayList<>();
-    private List<String> validWords = new ArrayList<>(); // We'll still keep track of valid words in code even though we don't display them
+    private List<String> validWords = new ArrayList<>(); // We'll still keep track of valid words in code even though we
+                                                         // don't display them
 
     private boolean isHost;
 
@@ -69,6 +70,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     private FirebaseController firebaseController;
     private AlertDialog dialog;
 
+    private Game currentGame;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -169,7 +171,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
 
         // Check if player has already submitted a word for this round
         for (Player player : players) {
-            if (player.getId().equals(playerId) && player.getCurrentWord() != null && !player.getCurrentWord().isEmpty()) {
+            if (player.getId().equals(playerId) && player.getCurrentWord() != null
+                    && !player.getCurrentWord().isEmpty()) {
                 Toast.makeText(this, "You've already submitted a word for this round", Toast.LENGTH_SHORT).show();
                 return;
             }
@@ -200,7 +203,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
                 @Override
                 public void onSuccess() {
                     // Word was valid and submitted successfully
-                    Toast.makeText(GameActivity.this, "Word submitted! Waiting for other players...", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(GameActivity.this, "Word submitted! Waiting for other players...",
+                            Toast.LENGTH_SHORT).show();
                     wordHistoryAdapter.addWord(word);
                 }
 
@@ -219,6 +223,7 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             enableInput.run();
         }
     }
+
     private void startTimer(long durationMillis) {
         // Cancel any existing timer
         if (countDownTimer != null) {
@@ -259,6 +264,9 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
 
     @Override
     public void onGameStateChanged(Game game) {
+        // Store the current game state
+        this.currentGame = game;
+
         // Update UI with game state
         runOnUiThread(() -> {
             if (!"gameEnd".equals(game.getStatus())) {
@@ -316,7 +324,6 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             System.out.println("TELEPATHY: Available words for round " + round.getRoundNumber() +
                     ": " + String.join(", ", round.getWords().subList(0, Math.min(5, round.getWords().size()))) +
                     "... (" + round.getWords().size() + " total words)");
-
 
             // Add a system message for new round
             wordHistoryAdapter.addSystemMessage("Round " + round.getRoundNumber() + " started");
@@ -468,7 +475,8 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
     @Override
     public void onGameEnd(Player winner) {
         runOnUiThread(() -> {
-            if (countDownTimer != null) countDownTimer.cancel();
+            if (countDownTimer != null)
+                countDownTimer.cancel();
 
             Log.d("TELEPATHY", "Game ended. isHost=" + isHost + ", lobbyId=" + lobbyId);
 
@@ -489,7 +497,6 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             showGameEndDialog(winner);
         });
     }
-
 
     @Override
     public void onError(String error) {
@@ -567,30 +574,60 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
         PlayerListAdapter leaderboardAdapter = new PlayerListAdapter(sortedPlayers);
         finalLeaderboardRecyclerView.setAdapter(leaderboardAdapter);
 
-        // Set appropriate content based on game outcome
-        if (winner != null) {
-            // We have a winner
-            winnerNameTextView.setVisibility(View.VISIBLE);
-            noWinnerTextView.setVisibility(View.GONE);
+        // Check if we're in matching mode
+        boolean isMatchingMode = currentGame != null && currentGame.getConfig().isMatchingMode();
 
-            if (winner.getId().equals(playerId)) {
-                // Current player is the winner
+        if (isMatchingMode) {
+            // In matching mode, winner being null means this player matched
+            if (winner == null) {
                 gameEndTitleTextView.setText("YOU WON!");
-                winnerNameTextView.setText("Congratulations!");
-            } else {
-                // Another player is the winner
-                gameEndTitleTextView.setText("GAME OVER");
-                winnerNameTextView.setText(winner.getUsername() + " is the winner!");
-            }
+                winnerNameTextView.setText("You matched!");
+                winnerNameTextView.setVisibility(View.VISIBLE);
+                noWinnerTextView.setVisibility(View.GONE);
 
-            // Show the winner's score
-            finalScoreTextView.setText("Score: " + winner.getScore());
+                // Find current player's score
+                for (Player player : players) {
+                    if (player.getId().equals(playerId)) {
+                        finalScoreTextView.setText("Score: " + player.getScore());
+                        break;
+                    }
+                }
+                finalScoreTextView.setVisibility(View.VISIBLE);
+            } else {
+                // Player didn't match
+                gameEndTitleTextView.setText("GAME OVER");
+                winnerNameTextView.setText("No match found!");
+                winnerNameTextView.setVisibility(View.VISIBLE);
+                noWinnerTextView.setVisibility(View.GONE);
+                finalScoreTextView.setVisibility(View.GONE);
+            }
         } else {
-            // No winner (everyone eliminated)
-            gameEndTitleTextView.setText("GAME OVER");
-            winnerNameTextView.setVisibility(View.GONE);
-            noWinnerTextView.setVisibility(View.VISIBLE);
-            finalScoreTextView.setVisibility(View.GONE);
+            // Classic mode
+            if (winner != null) {
+                // We have a winner
+                winnerNameTextView.setVisibility(View.VISIBLE);
+                noWinnerTextView.setVisibility(View.GONE);
+
+                if (winner.getId().equals(playerId)) {
+                    // Current player is the winner
+                    gameEndTitleTextView.setText("YOU WON!");
+                    winnerNameTextView.setText("Congratulations!");
+                } else {
+                    // Another player is the winner
+                    gameEndTitleTextView.setText("GAME OVER");
+                    winnerNameTextView.setText(winner.getUsername() + " is the winner!");
+                }
+
+                // Show the winner's score
+                finalScoreTextView.setText("Score: " + winner.getScore());
+                finalScoreTextView.setVisibility(View.VISIBLE);
+            } else {
+                // No winner (everyone eliminated)
+                gameEndTitleTextView.setText("GAME OVER");
+                winnerNameTextView.setVisibility(View.GONE);
+                noWinnerTextView.setVisibility(View.VISIBLE);
+                finalScoreTextView.setVisibility(View.GONE);
+            }
         }
 
         // Set up button to return to main menu
@@ -601,8 +638,6 @@ public class GameActivity extends AppCompatActivity implements GameController.Ga
             finish();
         });
     }
-
-
 
     @Override
     protected void onDestroy() {
