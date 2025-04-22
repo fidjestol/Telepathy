@@ -99,6 +99,15 @@ public class GameController {
             List<Player> players = extractPlayers(gameData);
             GameRound round = extractRoundData(gameData);
 
+            // Extract used words from Firebase
+            Object usedWordsObj = gameData.get("usedWords");
+            Set<String> firebaseUsedWords = new HashSet<>();
+            if (usedWordsObj instanceof Map) {
+                Map<String, Object> usedWordsMap = (Map<String, Object>) usedWordsObj;
+                firebaseUsedWords.addAll(usedWordsMap.keySet());
+                System.out.println("TELEPATHY: Loaded " + firebaseUsedWords.size() + " used words from Firebase");
+            }
+
             // Track eliminated players before updating game state
             Set<String> previouslyActivePlayers = new HashSet<>();
             if (currentGame != null) {
@@ -167,6 +176,11 @@ public class GameController {
 
             // Update game state
             updateGameState(config, players, round, status);
+
+            // Update the game's usedWords set with words from Firebase
+            if (currentGame != null) {
+                currentGame.setUsedWords(firebaseUsedWords);
+            }
 
             // Check for newly eliminated players
             if (currentGame != null) {
@@ -647,7 +661,6 @@ public class GameController {
         if (currentGame != null && currentGame.getConfig().isMatchingMode()) {
             System.out.println("TELEPATHY_DEBUG: letting every word through");
             submitWord(normalizedWord);
-            currentGame.addUsedWord(normalizedWord);
             System.out.println("TELEPATHY: Player submitted word in matching mode: " + normalizedWord);
             actualCallback.onSuccess();
             return;
@@ -655,7 +668,7 @@ public class GameController {
 
         // Regular mode validation
         if (currentGame != null && currentGame.getCurrentRound() != null) {
-            System.out.println("debuggin: Normal mode validation");
+            System.out.println("TELEPATHY_DEBUG: Normal mode validation");
             List<String> validWords = currentGame.getCurrentRound().getWords();
 
             if (validWords != null) {
@@ -676,10 +689,12 @@ public class GameController {
             }
         }
 
-        // If validation passes, submit the word and add to used words
+        // If validation passes, submit the word
+        // IMPORTANT: Don't add to usedWords yet - it will be added at round end
         submitWord(normalizedWord);
+
         if (currentGame != null) {
-            currentGame.addUsedWord(normalizedWord);
+            // We don't add to used words here anymore
             System.out.println("TELEPATHY: Player submitted word: " + normalizedWord);
         }
 

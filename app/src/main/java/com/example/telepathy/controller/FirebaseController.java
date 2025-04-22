@@ -49,7 +49,7 @@ public class FirebaseController {
 
     // Helper method to update player data
     public void updatePlayerData(String gameId, String playerId, Map<String, Object> updates,
-            FirebaseCallback callback) {
+                                 FirebaseCallback callback) {
         if (gameId == null || gameId.isEmpty() || playerId == null || playerId.isEmpty() || updates == null
                 || updates.isEmpty()) {
             callback.onFailure("Invalid parameters for player update");
@@ -389,6 +389,9 @@ public class FirebaseController {
                             gameData.put("config", configData);
                             gameData.put("status", "active");
 
+                            // Initialize usedWords map
+                            gameData.put("usedWords", new HashMap<String, Boolean>());
+
                             // Create first round
                             Map<String, Object> roundData = new HashMap<>();
                             roundData.put("roundNumber", 1);
@@ -459,6 +462,53 @@ public class FirebaseController {
         return com.example.telepathy.model.WordSelection.getRandomWords(category, count);
     }
 
+    // In FirebaseController.java, add this method:
+    public void addUsedWord(String gameId, String word, FirebaseCallback callback) {
+        if (gameId == null || gameId.isEmpty() || word == null || word.isEmpty()) {
+            callback.onFailure("Invalid parameters for adding used word");
+            return;
+        }
+
+        // Normalize the word
+        word = word.trim().toLowerCase();
+
+        // Update the usedWords list in Firebase
+        database.child("games").child(gameId).child("usedWords").child(word).setValue(true)
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        callback.onSuccess(null);
+                    } else {
+                        callback.onFailure(task.getException() != null ? task.getException().getMessage()
+                                : "Failed to add used word");
+                    }
+                });
+    }
+
+    // Also add a method to get used words:
+    public void getUsedWords(String gameId, FirebaseCallback callback) {
+        if (gameId == null || gameId.isEmpty()) {
+            callback.onFailure("Invalid game ID");
+            return;
+        }
+
+        database.child("games").child(gameId).child("usedWords").get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult() != null) {
+                        DataSnapshot snapshot = task.getResult();
+                        Set<String> usedWords = new HashSet<>();
+
+                        for (DataSnapshot wordSnapshot : snapshot.getChildren()) {
+                            usedWords.add(wordSnapshot.getKey());
+                        }
+
+                        callback.onSuccess(usedWords);
+                    } else {
+                        callback.onFailure(task.getException() != null ? task.getException().getMessage()
+                                : "Failed to retrieve used words");
+                    }
+                });
+    }
+
     // Replace the endCurrentRound method in FirebaseController.java to
     // automatically schedule the next round
 
@@ -510,6 +560,13 @@ public class FirebaseController {
                             // Track word frequencies
                             final Map<String, List<String>> wordToPlayers = new HashMap<>();
 
+                            // Get existing usedWords or create new map
+                            Map<String, Object> usedWordsMap = (Map<String, Object>) gameData.get("usedWords");
+                            if (usedWordsMap == null) {
+                                usedWordsMap = new HashMap<>();
+                            }
+                            final Map<String, Object> finalUsedWordsMap = usedWordsMap;
+
                             // First pass: Build word frequency map and count active players
                             if (playersData != null) {
                                 for (Map.Entry<String, Object> entry : playersData.entrySet()) {
@@ -537,10 +594,15 @@ public class FirebaseController {
                                                 wordToPlayers.put(word, new ArrayList<>());
                                             }
                                             wordToPlayers.get(word).add(playerId);
+
+                                            // Add word to usedWords map
                                         }
                                     }
                                 }
                             }
+
+                            // Add usedWords to updates
+                            //updates.put("usedWords", finalUsedWordsMap);
 
                             final boolean hasMatchingWords = checkForMatchingWords(wordToPlayers);
 
@@ -574,7 +636,7 @@ public class FirebaseController {
                                                 System.out.println("TELEPATHY_DEBUG: Game should end - " +
                                                         (isMatchingMode ? "matching words found!"
                                                                 : "only " + remainingPlayerCount[0]
-                                                                        + " player(s) remaining"));
+                                                                + " player(s) remaining"));
                                                 database.child("games").child(gameId).child("status")
                                                         .setValue("gameEnd");
                                             } else {
@@ -702,7 +764,13 @@ public class FirebaseController {
 
         // First pass: Process unique words and award points
         for (Map.Entry<String, List<String>> entry : wordToPlayers.entrySet()) {
+            String word = entry.getKey();
             List<String> playerIds = entry.getValue();
+
+            // Add words to the usedWords map at round end
+            if (!word.isEmpty()) {
+                updates.put("usedWords/" + word, true);
+            }
             if (playerIds.size() == 1) {
                 // Award points for unique words
                 String playerId = playerIds.get(0);

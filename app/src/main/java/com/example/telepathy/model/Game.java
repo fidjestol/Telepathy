@@ -49,6 +49,11 @@ public class Game {
         return new HashSet<>(usedWords);
     }
 
+    // Add a setter for usedWords
+    public void setUsedWords(Set<String> usedWords) {
+        this.usedWords = new HashSet<>(usedWords);
+    }
+
     // Getters and setters
     public String getGameId() {
         return gameId;
