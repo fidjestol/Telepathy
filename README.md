@@ -76,6 +76,99 @@ Telepathy is a multiplayer word game for Android where players try to choose uni
 - **Game freezes**: Try closing and reopening the app
 - **Login issues**: Verify your email and password are correct.
 
+## Project Structure
+
+The Telepathy project follows a standard Android application structure with an MVC architectural pattern:
+
+```
+app/src/main/
+├── java/com/example/telepathy/
+│   ├── controller/                     # Controllers connect models and views
+│   │   ├── FirebaseController.java     # Manages Firebase operations
+│   │   └── GameController.java         # Manages game state and logic
+│   │
+│   ├── model/                          # Data models and business logic
+│   │   ├── Database.java               # Database wrapper
+│   │   ├── Game.java                   # Core game model
+│   │   ├── GameConfig.java             # Game configuration options
+│   │   ├── GameRound.java              # Single round of gameplay
+│   │   ├── Lobby.java                  # Pre-game player grouping
+│   │   ├── Player.java                 # Game participant
+│   │   ├── ScoringSystem.java          # Handles point calculation
+│   │   ├── User.java                   # Application user
+│   │   └── WordSelection.java          # Word category management
+│   │
+│   ├── utils/                          # Utility classes
+│   │   ├── Constants.java              # Application constants
+│   │   └── PreferenceManager.java      # Local data persistence
+│   │
+│   ├── view/                           # UI components
+│   │   ├── activities/                 # Android activities
+│   │   │   ├── GameActivity.java       # Main gameplay screen
+│   │   │   ├── LobbyActivity.java      # Lobby management screen
+│   │   │   ├── LoginActivity.java      # User authentication
+│   │   │   ├── MainActivity.java       # Application entry point
+│   │   │   └── RegisterActivity.java   # New user registration
+│   │   │
+│   │   ├── adapters/                   # RecyclerView adapters
+│   │   │   ├── LobbyListAdapter.java   # Displays available lobbies
+│   │   │   ├── PlayerListAdapter.java  # Displays player information
+│   │   │   ├── WordHistoryAdapter.java # Shows word usage history
+│   │   │   └── WordListAdapter.java    # Shows available words
+│   │   │
+│   │   └── fragments/                  # UI fragments
+│   │       ├── CreateLobbyFragment.java # Lobby creation UI
+│   │       ├── JoinLobbyFragment.java   # Lobby discovery UI
+│   │       └── MenuFragment.java        # Main menu UI
+│   │
+│   └── TelepathyApplication.java       # Application class
+│
+├── res/                                # Android resources
+│   ├── anim/                           # Animation resources
+│   ├── drawable/                       # Images and shapes
+│   ├── layout/                         # XML layout files
+│   │   ├── activity_*.xml              # Activity layouts
+│   │   ├── fragment_*.xml              # Fragment layouts
+│   │   ├── dialog_*.xml                # Dialog layouts
+│   │   └── item_*.xml                  # Adapter item layouts
+│   │
+│   ├── menu/                           # Menu definitions
+│   ├── mipmap/                         # App icons
+│   ├── values/                         # Resource values
+│   │   ├── colors.xml                  # Color definitions
+│   │   ├── strings.xml                 # Text strings
+│   │   └── themes.xml                  # UI themes
+│   │
+│   └── xml/                            # Other XML resources
+│
+└── AndroidManifest.xml                 # App declaration file
+
+```
+
+### Key Components
+
+- **Controller Package**: Contains classes that handle the application logic and data flow
+- **Model Package**: Holds data structures and business logic
+- **View Package**: Contains all UI components (activities, fragments, adapters)
+- **Utils Package**: Provides utility classes used throughout the application
+
+### Firebase Integration
+
+The project uses Firebase for:
+- Authentication (user login/registration)
+- Realtime Database (game state, lobbies, user data)
+- Crashlytics (error reporting)
+
+The Firebase configuration is stored in the `google-services.json` file at the root of the app module.
+
+### Tests
+
+Unit tests are located in the `app/src/test/` directory, with:
+- Basic functionality tests in `ExampleUnitTest.java`
+- Game logic tests in `GameTest.java`
+
+Instrumented tests are in the `app/src/androidTest/` directory.
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
