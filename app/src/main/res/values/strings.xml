@@ -55,10 +55,18 @@
     <string name="rules_time_limit">Time Limit: %1$d seconds</string>
     <string name="rules_lives">Lives: %1$d</string>
 
+    <!-- Game Mode -->
+    <string name="game_mode">Game Mode</string>
+    <string name="game_mode_classic">Classic</string>
+    <string name="game_mode_matching">Matching</string>
+    <string name="game_mode_label">Mode: %1$s</string>
+
     <!-- Game End -->
     <string name="game_over">Game Over</string>
     <string name="winner_announcement">%1$s is the winner!</string>
     <string name="you_won">Congratulations! You won!</string>
     <string name="you_lost">Better luck next time!</string>
     <string name="back_to_main_menu">Back to Main Menu</string>
+    <string name="no_winner">No Winner - Everyone Eliminated!</string>
+    <string name="player_score">Score: %1$d</string>
 </resources>

@@ -1,7 +1,9 @@
 package com.example.telepathy.view.activities;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
@@ -30,6 +32,7 @@ public class LobbyActivity extends AppCompatActivity {
     private TextView lobbyNameTextView;
     private TextView hostNameTextView;
     private TextView categoryTextView;
+    private TextView gameModeTextView;
     private RecyclerView playersRecyclerView;
     private Button startGameButton;
     private Button leaveLobbyButton;
@@ -61,6 +64,7 @@ public class LobbyActivity extends AppCompatActivity {
         lobbyNameTextView = findViewById(R.id.lobbyNameTextView);
         hostNameTextView = findViewById(R.id.hostNameTextView);
         categoryTextView = findViewById(R.id.categoryTextView);
+        gameModeTextView = findViewById(R.id.gameModeTextView);
         playersRecyclerView = findViewById(R.id.playersRecyclerView);
         startGameButton = findViewById(R.id.startGameButton);
         leaveLobbyButton = findViewById(R.id.leaveLobbyButton);
@@ -89,11 +93,18 @@ public class LobbyActivity extends AppCompatActivity {
                 .child("lobbies").child(lobbyId);
 
         lobbyListener = new ValueEventListener() {
+            // In the lobbyListener's onDataChange method (LobbyActivity.java)
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 Lobby lobby = snapshot.getValue(Lobby.class);
                 if (lobby != null) {
                     updateUI(lobby);
+
+                    // Check if a game has been started
+                    if (lobby.getGameId() != null && !lobby.getGameId().isEmpty()) {
+                        // Game has been started, navigate to GameActivity
+                        navigateToGameActivity(lobby.getGameId());
+                    }
                 }
             }
 
@@ -146,6 +157,7 @@ public class LobbyActivity extends AppCompatActivity {
         }
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     private void updateUI(Lobby lobby) {
         lobbyNameTextView.setText(lobby.getName());
 
@@ -158,13 +170,25 @@ public class LobbyActivity extends AppCompatActivity {
                 hostName = player.getUsername();
                 if (player.getId().equals(playerId)) {
                     currentPlayerIsHost = true;
+                    isHost = true;
                 }
                 break;
             }
         }
 
         hostNameTextView.setText(getString(R.string.host_name, hostName));
-        categoryTextView.setText(getString(R.string.category_label, lobby.getGameConfig().getSelectedCategory()));
+
+        // Set game mode text
+        String gameMode = lobby.getGameConfig().isMatchingMode() ? "Matching" : "Classic";
+        gameModeTextView.setText(getString(R.string.game_mode_label, gameMode));
+
+        // Show/hide category based on game mode
+        if (lobby.getGameConfig().isMatchingMode()) {
+            categoryTextView.setVisibility(View.GONE);
+        } else {
+            categoryTextView.setVisibility(View.VISIBLE);
+            categoryTextView.setText(getString(R.string.category_label, lobby.getGameConfig().getSelectedCategory()));
+        }
 
         // Update players list
         players.clear();
@@ -192,6 +216,8 @@ public class LobbyActivity extends AppCompatActivity {
             @Override
             public void onFailure(String error) {
                 progressBar.setVisibility(View.GONE);
+                Log.e("LobbyActivity", "Failed to start game: " + error);
+                System.out.println(error);
                 Toast.makeText(LobbyActivity.this, error, Toast.LENGTH_SHORT).show();
             }
         });
@@ -220,6 +246,7 @@ public class LobbyActivity extends AppCompatActivity {
         intent.putExtra("lobbyId", lobbyId);
         intent.putExtra("gameId", gameId);
         intent.putExtra("playerId", playerId);
+        intent.putExtra("isHost", isHost); // This is needed
         startActivity(intent);
         finish();
     }

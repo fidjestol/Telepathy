@@ -9,6 +9,7 @@ public class GameConfig {
     private int livesPerPlayer;
     private List<String> categories;
     private String selectedCategory;
+    private boolean isMatchingMode; // Simple boolean flag for game mode
 
     // Default constructor for Firebase
     public GameConfig() {
@@ -22,6 +23,7 @@ public class GameConfig {
         this.categories.add("Foods");
         this.categories.add("Sports");
         this.selectedCategory = "Animals";
+        this.isMatchingMode = false; // Default to classic mode
     }
 
     // Constructor with custom parameters
@@ -35,6 +37,7 @@ public class GameConfig {
         this.categories.add("Foods");
         this.categories.add("Sports");
         this.selectedCategory = selectedCategory;
+        this.isMatchingMode = false; // Default to classic mode
     }
 
     // Getters and setters
@@ -82,5 +85,13 @@ public class GameConfig {
 
     public void setSelectedCategory(String selectedCategory) {
         this.selectedCategory = selectedCategory;
+    }
+
+    public boolean isMatchingMode() {
+        return isMatchingMode;
+    }
+
+    public void setMatchingMode(boolean matchingMode) {
+        isMatchingMode = matchingMode;
     }
 }

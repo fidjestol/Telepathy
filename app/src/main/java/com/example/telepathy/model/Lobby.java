@@ -13,7 +13,6 @@ public class Lobby {
     private String hostId;
     private String gameId;
 
-
     // Default constructor for Firebase
     public Lobby() {
         // Required empty constructor for Firebase

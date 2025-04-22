@@ -84,6 +84,25 @@
         app:layout_constraintTop_toBottomOf="@+id/livesLabel" />
 
     <TextView
+        android:id="@+id/gameModeLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="@string/game_mode"
+        android:textStyle="bold"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/livesEditText" />
+
+    <Spinner
+        android:id="@+id/gameModeSpinner"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/gameModeLabel" />
+
+    <TextView
         android:id="@+id/categoryLabel"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -91,7 +110,7 @@
         android:text="@string/word_category"
         android:textStyle="bold"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/livesEditText" />
+        app:layout_constraintTop_toBottomOf="@+id/gameModeSpinner" />
 
     <Spinner
         android:id="@+id/categorySpinner"

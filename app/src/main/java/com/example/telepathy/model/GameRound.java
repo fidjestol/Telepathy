@@ -86,7 +86,11 @@ public class GameRound {
         }
     }
 
-    public boolean isWordValid(String word) {
+    public boolean isWordValid(String word, GameConfig config) {
+        if (config != null && config.isMatchingMode()) {
+            System.out.println("debuggin: Word is valid in matching mode alwaysssss");
+            return word != null && !word.isEmpty();
+        }
         return word != null && !word.isEmpty() && words.contains(word.toLowerCase());
     }
 
