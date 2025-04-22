@@ -99,6 +99,16 @@ public class GameController {
             List<Player> players = extractPlayers(gameData);
             GameRound round = extractRoundData(gameData);
 
+            // Track eliminated players before updating game state
+            Set<String> previouslyActivePlayers = new HashSet<>();
+            if (currentGame != null) {
+                for (Player player : currentGame.getPlayers()) {
+                    if (!player.isEliminated()) {
+                        previouslyActivePlayers.add(player.getId());
+                    }
+                }
+            }
+
             // Generate a unique ID for this round's state to prevent duplicate processing
             String roundId = "";
             if (round != null) {
@@ -157,6 +167,18 @@ public class GameController {
 
             // Update game state
             updateGameState(config, players, round, status);
+
+            // Check for newly eliminated players
+            if (currentGame != null) {
+                for (Player player : players) {
+                    if (player.isEliminated() && previouslyActivePlayers.contains(player.getId())) {
+                        // This player was just eliminated
+                        if (updateListener != null) {
+                            updateListener.onPlayerEliminated(player);
+                        }
+                    }
+                }
+            }
 
             // If this is a new round, clear the processed rounds for the previous round
             if (isNewRound && "active".equals(status)) {

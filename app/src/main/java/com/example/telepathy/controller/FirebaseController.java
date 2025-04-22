@@ -489,19 +489,26 @@ public class FirebaseController {
                                 return;
                             }
 
+                            // Get game configuration to check mode
+                            Map<String, Object> configData = (Map<String, Object>) gameData.get("config");
+                            final boolean isMatchingMode;
+                            if (configData != null) {
+                                Object matchingModeObj = configData.get("matchingMode");
+                                isMatchingMode = matchingModeObj instanceof Boolean && (Boolean) matchingModeObj;
+                            } else {
+                                isMatchingMode = false;
+                            }
+
                             // First, get all the players
-                            Map<String, Object> playersData = (Map<String, Object>) gameData.get("players");
+                            final Map<String, Object> playersData = (Map<String, Object>) gameData.get("players");
 
                             // Keep track of updates to make
-                            Map<String, Object> updates = new HashMap<>();
-                            int[] activePlayerCount = { 0 };
-                            int[] remainingPlayerCount = { 0 };
-
-                            // CRITICAL: Use a single set to track all players that will lose lives
-                            Set<String> playersLosingLives = new HashSet<>();
+                            final Map<String, Object> updates = new HashMap<>();
+                            final int[] activePlayerCount = { 0 };
+                            final int[] remainingPlayerCount = { 0 };
 
                             // Track word frequencies
-                            Map<String, List<String>> wordToPlayers = new HashMap<>();
+                            final Map<String, List<String>> wordToPlayers = new HashMap<>();
 
                             // First pass: Build word frequency map and count active players
                             if (playersData != null) {
@@ -509,124 +516,40 @@ public class FirebaseController {
                                     String playerId = entry.getKey();
                                     Map<String, Object> playerData = (Map<String, Object>) entry.getValue();
 
-                                    // Check if player is eliminated
-                                    Object eliminatedObj = playerData.get("eliminated");
-                                    boolean isEliminated = (eliminatedObj instanceof Boolean
-                                            && (Boolean) eliminatedObj);
-
-                                    if (!isEliminated) {
-                                        remainingPlayerCount[0]++;
-
-                                        // Get player's word
-                                        Object currentWordObj = playerData.get("currentWord");
-                                        String currentWord = (currentWordObj instanceof String)
-                                                ? (String) currentWordObj
-                                                : "";
-
-                                        if (currentWord == null || currentWord.isEmpty()) {
-                                            // Player didn't submit a word - add to losing lives set
-                                            playersLosingLives.add(playerId);
-                                            System.out.println("TELEPATHY_DEBUG: Player " + playerData.get("username") +
-                                                    " will lose 1 life for not submitting a word");
-                                        } else {
-                                            // Add to word frequency map
-                                            if (!wordToPlayers.containsKey(currentWord)) {
-                                                wordToPlayers.put(currentWord, new ArrayList<>());
-                                            }
-                                            wordToPlayers.get(currentWord).add(playerId);
-                                        }
-
-                                        activePlayerCount[0]++;
-                                    }
-                                }
-                            }
-
-                            // Second pass: Find duplicate words
-                            for (Map.Entry<String, List<String>> entry : wordToPlayers.entrySet()) {
-                                String word = entry.getKey();
-                                List<String> playerIds = entry.getValue();
-
-                                if (playerIds.size() > 1) {
-                                    System.out.println("TELEPATHY_DEBUG: Found duplicate word '" + word +
-                                            "' submitted by " + playerIds.size() + " players");
-
-                                    // Add all these players to lose lives
-                                    for (String playerId : playerIds) {
-                                        playersLosingLives.add(playerId);
-
-                                        // Get the username for logging
-                                        Map<String, Object> playerData = (Map<String, Object>) playersData
-                                                .get(playerId);
-                                        if (playerData != null) {
-                                            System.out.println("TELEPATHY_DEBUG: Player " + playerData.get("username") +
-                                                    " will lose 1 life for duplicate word '" + word + "'");
-                                        }
-                                    }
-                                }
-                            }
-
-                            // SINGLE pass to reduce lives - This ensures each player loses at most ONE life
-                            for (String playerId : playersLosingLives) {
-                                Map<String, Object> playerData = (Map<String, Object>) playersData.get(playerId);
-                                if (playerData == null)
-                                    continue;
-
-                                // Get current lives
-                                int currentLives = 3; // Default
-                                Object livesObj = playerData.get("lives");
-                                if (livesObj instanceof Long) {
-                                    currentLives = ((Long) livesObj).intValue();
-                                } else if (livesObj instanceof Integer) {
-                                    currentLives = (Integer) livesObj;
-                                }
-
-                                // Reduce by EXACTLY ONE life
-                                int newLives = Math.max(0, currentLives - 1);
-
-                                // Add to update batch
-                                updates.put("players/" + playerId + "/lives", newLives);
-
-                                String username = (String) playerData.get("username");
-                                System.out.println("TELEPATHY_DEBUG: Reducing player " + username +
-                                        " lives from " + currentLives + " to " + newLives);
-
-                                // If player is eliminated, mark them
-                                if (newLives <= 0) {
-                                    updates.put("players/" + playerId + "/eliminated", true);
-                                    remainingPlayerCount[0]--;
-                                    System.out.println("TELEPATHY_DEBUG: Player " + username + " will be eliminated");
-                                }
-                            }
-
-                            // Award points for unique words
-                            for (Map.Entry<String, List<String>> entry : wordToPlayers.entrySet()) {
-                                String word = entry.getKey();
-                                List<String> playerIds = entry.getValue();
-
-                                // Only award points for unique words
-                                if (playerIds.size() == 1) {
-                                    String playerId = playerIds.get(0);
-                                    Map<String, Object> playerData = (Map<String, Object>) playersData.get(playerId);
                                     if (playerData == null)
                                         continue;
 
-                                    // Get current score
-                                    int currentScore = 0;
-                                    Object scoreObj = playerData.get("score");
-                                    if (scoreObj instanceof Long) {
-                                        currentScore = ((Long) scoreObj).intValue();
-                                    } else if (scoreObj instanceof Integer) {
-                                        currentScore = (Integer) scoreObj;
+                                    // Check if player is eliminated
+                                    boolean isEliminated = false;
+                                    Object eliminatedObj = playerData.get("eliminated");
+                                    if (eliminatedObj instanceof Boolean) {
+                                        isEliminated = (Boolean) eliminatedObj;
                                     }
 
-                                    // Award 10 points
-                                    int newScore = currentScore + 10;
-                                    updates.put("players/" + playerId + "/score", newScore);
+                                    if (!isEliminated) {
+                                        activePlayerCount[0]++;
 
-                                    String username = (String) playerData.get("username");
-                                    System.out.println("TELEPATHY_DEBUG: Awarding player " + username +
-                                            " 10 points for unique word '" + word + "'");
+                                        // Get player's word
+                                        String word = (String) playerData.get("currentWord");
+                                        if (word != null && !word.trim().isEmpty()) {
+                                            word = word.trim().toLowerCase();
+                                            if (!wordToPlayers.containsKey(word)) {
+                                                wordToPlayers.put(word, new ArrayList<>());
+                                            }
+                                            wordToPlayers.get(word).add(playerId);
+                                        }
+                                    }
                                 }
+                            }
+
+                            final boolean hasMatchingWords = checkForMatchingWords(wordToPlayers);
+
+                            // Process words based on game mode
+                            if (isMatchingMode) {
+                                processMatchingMode(wordToPlayers, playersData, updates);
+                                remainingPlayerCount[0] = activePlayerCount[0];
+                            } else {
+                                processClassicMode(wordToPlayers, playersData, updates, remainingPlayerCount);
                             }
 
                             // Update game status
@@ -641,11 +564,17 @@ public class FirebaseController {
                                             System.out.println("TELEPATHY: Round ended with " + remainingPlayerCount[0]
                                                     + " remaining players");
 
-                                            // Check if game should end
-                                            if (remainingPlayerCount[0] <= 1) {
-                                                // Game over - one or zero players left
-                                                System.out.println("TELEPATHY_DEBUG: Game should end - only "
-                                                        + remainingPlayerCount[0] + " player(s) remaining");
+                                            // Check if game should end based on mode
+                                            boolean shouldEndGame = isMatchingMode ? hasMatchingWords
+                                                    : remainingPlayerCount[0] <= 1;
+
+                                            if (shouldEndGame) {
+                                                // Game over - either matching words found or one player left in classic
+                                                // mode
+                                                System.out.println("TELEPATHY_DEBUG: Game should end - " +
+                                                        (isMatchingMode ? "matching words found!"
+                                                                : "only " + remainingPlayerCount[0]
+                                                                        + " player(s) remaining"));
                                                 database.child("games").child(gameId).child("status")
                                                         .setValue("gameEnd");
                                             } else {
@@ -672,6 +601,196 @@ public class FirebaseController {
                         callback.onFailure("Failed to get game data");
                     }
                 });
+    }
+
+    private boolean checkForMatchingWords(Map<String, List<String>> wordToPlayers) {
+        for (List<String> playerIds : wordToPlayers.values()) {
+            if (playerIds.size() > 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void processMatchingMode(
+            Map<String, List<String>> wordToPlayers,
+            Map<String, Object> playersData,
+            Map<String, Object> updates) {
+        // In matching mode:
+        // - Check if any words match
+        // - No life loss
+        // - Game ends when words match
+        for (Map.Entry<String, List<String>> entry : wordToPlayers.entrySet()) {
+            List<String> playerIds = entry.getValue();
+            if (playerIds.size() > 1) {
+                // Award points to all players who matched
+                for (String playerId : playerIds) {
+                    Map<String, Object> playerData = (Map<String, Object>) playersData.get(playerId);
+                    if (playerData == null)
+                        continue;
+
+                    // Get current score
+                    int currentScore = 0;
+                    Object scoreObj = playerData.get("score");
+                    if (scoreObj instanceof Long) {
+                        currentScore = ((Long) scoreObj).intValue();
+                    } else if (scoreObj instanceof Integer) {
+                        currentScore = (Integer) scoreObj;
+                    }
+
+                    // Award 20 points for matching
+                    int newScore = currentScore + 20;
+                    updates.put("players/" + playerId + "/score", newScore);
+                }
+            }
+        }
+    }
+
+    private void processClassicMode(
+            Map<String, List<String>> wordToPlayers,
+            Map<String, Object> playersData,
+            Map<String, Object> updates,
+            int[] remainingPlayerCount) {
+        // Classic mode:
+        // - Players lose lives for duplicate words
+        // - Points for unique words only
+        // Track the last active player
+        String lastActivePlayerId = null;
+        Map<String, Integer> playerLives = new HashMap<>(); // Track current lives for each player
+        Map<String, Boolean> playerEliminated = new HashMap<>(); // Track elimination status
+
+        // Initialize tracking maps with current values
+        for (Map.Entry<String, Object> entry : playersData.entrySet()) {
+            String playerId = entry.getKey();
+            Map<String, Object> playerData = (Map<String, Object>) entry.getValue();
+
+            if (playerData == null)
+                continue;
+
+            // Get current lives
+            int lives = 3; // Default
+            Object livesObj = playerData.get("lives");
+            if (livesObj instanceof Long) {
+                lives = ((Long) livesObj).intValue();
+            } else if (livesObj instanceof Integer) {
+                lives = (Integer) livesObj;
+            }
+            playerLives.put(playerId, lives);
+
+            // Get current elimination status
+            boolean isEliminated = false;
+            Object eliminatedObj = playerData.get("eliminated");
+            if (eliminatedObj instanceof Boolean) {
+                isEliminated = (Boolean) eliminatedObj;
+            }
+            playerEliminated.put(playerId, isEliminated);
+        }
+
+        // First pass: Process unique words and award points
+        for (Map.Entry<String, List<String>> entry : wordToPlayers.entrySet()) {
+            List<String> playerIds = entry.getValue();
+            if (playerIds.size() == 1) {
+                // Award points for unique words
+                String playerId = playerIds.get(0);
+                Map<String, Object> playerData = (Map<String, Object>) playersData.get(playerId);
+                if (playerData == null)
+                    continue;
+
+                int currentScore = 0;
+                Object scoreObj = playerData.get("score");
+                if (scoreObj instanceof Long) {
+                    currentScore = ((Long) scoreObj).intValue();
+                } else if (scoreObj instanceof Integer) {
+                    currentScore = (Integer) scoreObj;
+                }
+
+                int newScore = currentScore + 10;
+                updates.put("players/" + playerId + "/score", newScore);
+            } else {
+                // Reduce lives for players with duplicate words
+                for (String playerId : playerIds) {
+                    if (playerEliminated.get(playerId))
+                        continue; // Skip already eliminated players
+
+                    int lives = playerLives.get(playerId);
+                    lives--; // Reduce life for duplicate word
+
+                    playerLives.put(playerId, lives);
+                    updates.put("players/" + playerId + "/lives", lives);
+
+                    if (lives <= 0) {
+                        playerEliminated.put(playerId, true);
+                        updates.put("players/" + playerId + "/eliminated", true);
+                    }
+                }
+            }
+        }
+
+        // Second pass: Process players who didn't submit a word
+        for (Map.Entry<String, Object> entry : playersData.entrySet()) {
+            String playerId = entry.getKey();
+            Map<String, Object> playerData = (Map<String, Object>) entry.getValue();
+
+            if (playerData == null || playerEliminated.get(playerId))
+                continue;
+
+            // Check if player submitted a word
+            String word = (String) playerData.get("currentWord");
+            boolean submittedWord = word != null && !word.trim().isEmpty();
+
+            if (!submittedWord) {
+                // Player didn't submit a word, reduce life
+                int lives = playerLives.get(playerId);
+                lives--; // Reduce life for not submitting
+
+                playerLives.put(playerId, lives);
+                updates.put("players/" + playerId + "/lives", lives);
+
+                if (lives <= 0) {
+                    playerEliminated.put(playerId, true);
+                    updates.put("players/" + playerId + "/eliminated", true);
+                }
+            }
+        }
+
+        // Count remaining players and find last active player
+        remainingPlayerCount[0] = 0;
+        for (Map.Entry<String, Boolean> entry : playerEliminated.entrySet()) {
+            String playerId = entry.getKey();
+            boolean isEliminated = entry.getValue();
+            int lives = playerLives.get(playerId);
+
+            if (!isEliminated && lives > 0) {
+                remainingPlayerCount[0]++;
+                lastActivePlayerId = playerId;
+            }
+        }
+
+        System.out.println("TELEPATHY_DEBUG: Remaining players: " + remainingPlayerCount[0]);
+        if (lastActivePlayerId != null) {
+            System.out.println("TELEPATHY_DEBUG: Last active player: " + lastActivePlayerId);
+        }
+
+        // If only one player remains, they are the winner
+        if (remainingPlayerCount[0] == 1 && lastActivePlayerId != null) {
+            System.out.println("TELEPATHY_DEBUG: Game will end - only one player remains");
+            // Award bonus points to winner
+            Map<String, Object> winnerData = (Map<String, Object>) playersData.get(lastActivePlayerId);
+            if (winnerData != null) {
+                int currentScore = 0;
+                Object scoreObj = winnerData.get("score");
+                if (scoreObj instanceof Long) {
+                    currentScore = ((Long) scoreObj).intValue();
+                } else if (scoreObj instanceof Integer) {
+                    currentScore = (Integer) scoreObj;
+                }
+
+                // Award 100 bonus points for winning
+                int newScore = currentScore + 100;
+                updates.put("players/" + lastActivePlayerId + "/score", newScore);
+                updates.put("winnerId", lastActivePlayerId);
+            }
+        }
     }
 
     // Add at class level in FirebaseController.java:

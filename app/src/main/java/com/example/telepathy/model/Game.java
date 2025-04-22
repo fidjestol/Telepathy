@@ -3,6 +3,7 @@ package com.example.telepathy.model;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public class Game {
@@ -139,7 +140,11 @@ public class Game {
 
     public void endRound() {
         status = "roundEnd";
-        processDuplicateWords();
+
+        // Only process duplicate words in classic mode
+        if (!config.isMatchingMode()) {
+            processDuplicateWords();
+        }
 
         // Add all submitted words from players to the usedWords set
         for (Player player : players) {
@@ -150,14 +155,43 @@ public class Game {
             }
         }
 
+        // In matching mode, check if any words match to end the game
+        if (config.isMatchingMode()) {
+            checkForMatchingWords();
+        }
+
         System.out.println("TELEPATHY: Round ended, total used words: " + usedWords.size());
+    }
+
+    private void checkForMatchingWords() {
+        if (currentRound == null)
+            return;
+
+        Map<String, List<String>> duplicates = currentRound.findDuplicateWords();
+        if (!duplicates.isEmpty()) {
+            // Found matching words, end the game
+            status = "gameEnd";
+            System.out.println("TELEPATHY: Game ended - matching words found!");
+
+            // Award points to players who matched
+            for (List<String> playerIds : duplicates.values()) {
+                for (String playerId : playerIds) {
+                    Player player = getPlayerById(playerId);
+                    if (player != null) {
+                        player.addPoints(20); // Award 20 points for matching
+                        System.out.println(
+                                "TELEPATHY: Player " + player.getUsername() + " awarded 20 points for matching word");
+                    }
+                }
+            }
+        }
     }
 
     private void processDuplicateWords() {
         if (currentRound == null)
             return;
 
-        // Find duplicate words and penalize players
+        // Find duplicate words and penalize players (classic mode only)
         for (String word : currentRound.findDuplicateWords().keySet()) {
             List<String> playerIds = currentRound.findDuplicateWords().get(word);
             System.out
